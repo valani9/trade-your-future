@@ -1,13 +1,15 @@
 import type { HTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-type Tone = "neutral" | "coral" | "slate" | "mint";
+type Tone = "neutral" | "coral" | "slate" | "mint" | "light" | "glass";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-raised text-ink/80",
   coral: "bg-coral/10 text-coral",
   slate: "bg-slate/10 text-slate",
   mint: "bg-mint/10 text-mint",
+  light: "bg-white text-ink shadow-card",
+  glass: "bg-black/45 text-white backdrop-blur-md",
 };
 
 export function Pill({

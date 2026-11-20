@@ -247,7 +247,7 @@ export function BuyDeck({
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
         <div>
           <p className="text-[13px] font-semibold text-muted">Buy</p>
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">Tonight, next week, someday</h1>
+          <h1 className="text-[24px] font-extrabold leading-tight tracking-tighter">Tonight, next week, someday</h1>
         </div>
         <div className="flex items-center gap-2">
           {demoMode ? <span className="text-[12px] tracking-wide text-muted">Demo</span> : null}

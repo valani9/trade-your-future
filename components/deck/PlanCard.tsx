@@ -106,9 +106,9 @@ export const PlanCard = forwardRef<
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" style={{ top: "35%" }} />
 
       <div className="absolute inset-x-4 top-4 flex items-start justify-between">
-        <div className="flex flex-col gap-1.5">
-          <Pill className="bg-white text-ink shadow-card">{plan.status === "listed" ? "On sale" : "Your plan"}</Pill>
-          <Pill className="bg-black/40 backdrop-blur-md text-white">{TRANSFER_LABEL[plan.transferability] ?? plan.transferability}</Pill>
+        <div className="flex flex-col items-start gap-1.5">
+          <Pill tone="light">{plan.status === "listed" ? "On sale" : "Your plan"}</Pill>
+          <Pill tone="glass">{TRANSFER_LABEL[plan.transferability] ?? plan.transferability}</Pill>
         </div>
       </div>
 

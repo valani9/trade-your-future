@@ -110,11 +110,11 @@ export const SwipeCard = forwardRef<
       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" style={{ top: "35%" }} />
 
       <div className="absolute inset-x-4 top-4 flex items-start justify-between">
-        <div className="flex flex-col gap-1.5">
-          <Pill className="bg-white text-ink shadow-card">{card.category}</Pill>
-          <Pill className="bg-black/40 backdrop-blur-md text-white">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
+        <div className="flex flex-col items-start gap-1.5">
+          <Pill tone="light">{card.category}</Pill>
+          <Pill tone="glass">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
           {odds ? (
-            <Pill className="whitespace-nowrap bg-black/40 backdrop-blur-md text-white" data-testid="market-odds">
+            <Pill tone="glass" className="whitespace-nowrap" data-testid="market-odds">
               {odds.closeGame ? "Close game" : "Odds"} · {odds.favorite.name.split(" ").slice(-1)[0]}{" "}
               {Math.round(odds.favorite.probability * 100)}%
             </Pill>
