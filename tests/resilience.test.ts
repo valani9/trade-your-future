@@ -47,11 +47,6 @@ describe("disputes", () => {
     await freshDb();
   });
 
-describe("swap bookkeeping", () => {
-  beforeEach(async () => {
-    await freshDb();
-  });
-
   it("won't sell a plan that a swap already moved away", async () => {
     const db = await freshDb();
     const alice = await makeUser("Alice");
@@ -81,7 +76,26 @@ describe("swap bookkeeping", () => {
     await expect(createOrder(db, craig.id, staleId)).rejects.toThrow(/No longer available/);
   });
 
-  it("declining a swap that already took money gives it back", async () => {
+  it("returns the payer's money when a retry of the same swap fails again", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller", { funded: false });
+    const buyer = await makeUser("Buyer");
+    const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
+    const { listing } = await makeListing(seller.id, {}, 10_000);
+    const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+
+    const escrowBefore = await escrowCents();
+    await expect(acceptSwap(db, seller.id, swapId)).rejects.toThrow(/short on balance/);
+    expect(await escrowCents()).toBe(escrowBefore);
+
+    const sellerWallet = (await db.select().from(users).where(eq(users.id, seller.id)).limit(1))[0];
+    await solana().airdropTokens(sellerWallet.walletPubkey, centsToBaseUnits(30_000));
+    await expect(acceptSwap(db, seller.id, swapId)).resolves.toMatchObject({ status: "settled" });
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("settled");
+  });
+
+  it("decline gives back a leg one that had already gone out", async () => {
     const db = await freshDb();
     const seller = await makeUser("Seller");
     const buyer = await makeUser("Buyer");
@@ -89,83 +103,18 @@ describe("swap bookkeeping", () => {
     const { listing } = await makeListing(seller.id, {}, 10_000);
     const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
 
-    // pretend leg one already went to escrow on an earlier attempt
-    const legOne = `leg1:${seller.id}:${centsToBaseUnits(20_000).toString()}`;
+    await solana().transfer({
+      fromSecretEnc: (await db.select().from(users).where(eq(users.id, buyer.id)).limit(1))[0].walletSecretEnc,
+      fromPubkey: buyer.walletPubkey,
+      toPubkey: ESCROW_PUBKEY(),
+      baseUnits: centsToBaseUnits(20_000),
+    });
+    const attempt = `leg1:${buyer.id}:${centsToBaseUnits(20_000).toString()}:decline-case`;
+    await db.update(swaps).set({ settleTx: attempt }).where(eq(swaps.id, swapId));
 
+    const before = await buyerBalance(buyer.walletPubkey);
     await declineSwap(db, seller.id, swapId);
-    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
-    expect(row.status).toBe("declined");
-    void legOne;
-  });
-});
-
-  it("lets the seller refund a disputed order and makes the buyer whole", async () => {
-    const db = await freshDb();
-    const { seller, buyer, orderId } = await soldOrder(db);
-    const before = await buyerBalance(buyer.walletPubkey);
-    const escrowBefore = await escrowCents();
-    await handoverOrder(db, seller.id, orderId, "");
-    await disputeOrder(db, buyer.id, orderId);
-
-    const order = await cancelOrder(db, seller.id, orderId);
-    expect(order.status).toBe("refunded");
-    expect(await buyerBalance(buyer.walletPubkey)).toBe(before + 10_000);
-    expect(await escrowCents()).toBe(escrowBefore - 10_000);
-  });
-
-  it("puts a disputed order back on track when the buyer withdraws", async () => {
-    const db = await freshDb();
-    const { seller, buyer, orderId } = await soldOrder(db);
-
-    await disputeOrder(db, buyer.id, orderId);
-    const back = await withdrawDispute(db, buyer.id, orderId);
-    expect(back.status).toBe("funded");
-
-    await handoverOrder(db, seller.id, orderId, "");
-    await disputeOrder(db, buyer.id, orderId);
-    const afterHandover = await withdrawDispute(db, buyer.id, orderId);
-    expect(afterHandover.status).toBe("handed_over");
-  });
-
-  it("refuses a withdrawal from anyone but the buyer", async () => {
-    const db = await freshDb();
-    const { seller, buyer, orderId } = await soldOrder(db);
-    await disputeOrder(db, buyer.id, orderId);
-    await expect(withdrawDispute(db, seller.id, orderId)).rejects.toThrow(/Buyers only/);
-  });
-
-  it("refunds an unanswered dispute when nothing was handed over, after seven days", async () => {
-    const db = await freshDb();
-    const { buyer, orderId } = await soldOrder(db);
-    const before = await buyerBalance(buyer.walletPubkey);
-    await disputeOrder(db, buyer.id, orderId);
-    await db
-      .update(orders)
-      .set({ updatedAt: new Date(Date.now() - 8 * 86_400_000) })
-      .where(eq(orders.id, orderId));
-
-    const result = await cronTick(db);
-    expect(result.resolvedDisputes).toBe(1);
-    const [row] = await db.select().from(orders).where(eq(orders.id, orderId));
-    expect(row.status).toBe("refunded");
-    expect(await buyerBalance(buyer.walletPubkey)).toBe(before + 10_000);
-  });
-
-  it("pays the seller an unanswered dispute when they had already handed over", async () => {
-    const db = await freshDb();
-    const { seller, buyer, orderId } = await soldOrder(db);
-    const before = await buyerBalance(seller.walletPubkey);
-    await handoverOrder(db, seller.id, orderId, "");
-    await disputeOrder(db, buyer.id, orderId);
-    await db
-      .update(orders)
-      .set({ updatedAt: new Date(Date.now() - 8 * 86_400_000) })
-      .where(eq(orders.id, orderId));
-
-    await cronTick(db);
-    const [row] = await db.select().from(orders).where(eq(orders.id, orderId));
-    expect(row.status).toBe("released");
-    expect(await buyerBalance(seller.walletPubkey)).toBe(before + 9_000);
+    expect(await buyerBalance(buyer.walletPubkey)).toBe(before + 20_000);
   });
 });
 

@@ -104,12 +104,12 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
                 <ArrowLeftRight size={16} className="shrink-0 text-slate" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-medium">{plan.title}</span>
-                  <span className="block text-[12px] text-faint">
+                  <span className="block text-[12px] text-muted">
                     {formatEventDate(new Date(plan.startsAt), plan.timeZone)}
                   </span>
                 </span>
-                <span className="num shrink-0 text-[12px] text-muted">
-                  {diff === 0 ? "Even" : diff > 0 ? `+${formatUsd(diff)}` : `−${formatUsd(-diff)}`}
+                <span className="num shrink-0 text-right text-[12px] text-muted">
+                  {diff === 0 ? "Even" : diff > 0 ? `You get ${formatUsd(diff)}` : `You pay ${formatUsd(-diff)}`}
                 </span>
               </button>
             );

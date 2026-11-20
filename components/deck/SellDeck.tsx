@@ -205,8 +205,8 @@ export function SellDeck({
         <button onClick={() => openSell(clashPlans[1])} className="mb-4 block w-full text-left">
           <Card className="border-coral/25 bg-coral/[0.07] px-4 py-3.5">
             <p className="text-[13px] font-medium text-coral">
-              {clashPlans.length} plans at {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone).split(" · ")[0]} ·{" "}
-              {clashPlans[0].venue}
+              {clashPlans.length} plans on{" "}
+              {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone).split(" · ")[0]}
             </p>
             <p className="mt-0.5 text-[12px] text-muted">
               Sell {clashPlans[1].title.split(" ").slice(0, 4).join(" ")} and pocket the difference →

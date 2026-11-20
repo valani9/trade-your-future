@@ -106,6 +106,20 @@ export function BuyDeck({
     }
   }
 
+  async function releaseClaim() {
+    const orderId = claim?.orderId;
+    setClaim(null);
+    if (!orderId) return;
+    try {
+      await fetch("/api/swipes/undo", { method: "POST" });
+      setTop((n) => Math.max(0, n - 1));
+      setUndoLeft(0);
+      toast.show("Gave it back");
+    } catch {
+      toast.show("It's still held for you in Orders", "error");
+    }
+  }
+
   async function undo() {
     try {
       const res = await fetch("/api/swipes/undo", { method: "POST" });
@@ -274,7 +288,7 @@ export function BuyDeck({
           <Button full onClick={pay} loading={paying}>
             Pay {claim ? formatUsd(claim.card.priceCents) : ""}
           </Button>
-          <Button full variant="quiet" onClick={() => setClaim(null)}>
+          <Button full variant="quiet" onClick={releaseClaim}>
             Not now
           </Button>
         </div>

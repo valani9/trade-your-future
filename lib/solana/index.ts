@@ -198,6 +198,31 @@ export class DevnetSolana implements SolanaService {
     return getAssociatedTokenAddress(this.mint, new PublicKey(owner));
   }
 
+  private settled = new Map<string, string>();
+
+  /**
+   * A referenced transfer is only sent when no earlier transfer carries the same
+   * reference. A payout that landed but timed out is returned instead of re-sent, so a
+   * retry can never pay a second time. A lookup that cannot be completed refuses to
+   * send rather than guess.
+   */
+  private async alreadySent(reference: string, account: PublicKey): Promise<string | null> {
+    const cached = this.settled.get(reference);
+    if (cached) return cached;
+    const memo = `tyf:ref:${reference}`;
+    const signatures = await this.connection.getSignaturesForAddress(account, { limit: 20 });
+    for (const entry of signatures) {
+      if (entry.err) continue;
+      const parsed = await this.connection.getParsedTransaction(entry.signature, { maxSupportedTransactionVersion: 0 });
+      const logs = parsed?.meta?.logMessages ?? [];
+      if (logs.some((line) => line.includes(memo))) {
+        this.settled.set(reference, entry.signature);
+        return entry.signature;
+      }
+    }
+    return null;
+  }
+
   async airdropTokens(pubkey: string, baseUnits: bigint): Promise<string> {
     const dest = await this.ata(pubkey);
     const tx = new Transaction().add(
@@ -234,6 +259,10 @@ export class DevnetSolana implements SolanaService {
     const signer = Keypair.fromSecretKey(decryptSecret(fromSecretEnc));
     if (signer.publicKey.toBase58() !== fromPubkey) throw new Error("wallet mismatch");
     const source = await this.ata(fromPubkey);
+    if (reference) {
+      const earlier = await this.alreadySent(reference, source);
+      if (earlier) return earlier;
+    }
     const dest = await this.ata(toPubkey);
     const tx = new Transaction().add(
       createAssociatedTokenAccountIdempotentInstruction(this.escrow.publicKey, dest, new PublicKey(toPubkey), this.mint),
@@ -245,6 +274,7 @@ export class DevnetSolana implements SolanaService {
     tx.recentBlockhash = blockhash;
     tx.partialSign(this.escrow, signer);
     const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    if (reference) this.settled.set(reference, signature);
     await this.confirm(signature, blockhash);
     return signature;
   }
@@ -259,13 +289,19 @@ export class DevnetSolana implements SolanaService {
     reference?: string;
   }): Promise<string> {
     const source = await this.ata(this.escrow.publicKey.toBase58());
+    if (reference) {
+      const earlier = await this.alreadySent(reference, source);
+      if (earlier) return earlier;
+    }
     const dest = await this.ata(toPubkey);
     const tx = new Transaction().add(
       createAssociatedTokenAccountIdempotentInstruction(this.escrow.publicKey, dest, new PublicKey(toPubkey), this.mint),
       createTransferInstruction(source, dest, this.escrow.publicKey, baseUnits, [], TOKEN_PROGRAM_ID),
     );
     if (reference) tx.add(new TransactionInstruction({ keys: [], programId: MEMO_PROGRAM_ID, data: Buffer.from(`tyf:ref:${reference}`) }));
-    return sendAndConfirmTransaction(this.connection, tx, [this.escrow], { commitment: "confirmed" });
+    const sent = await sendAndConfirmTransaction(this.connection, tx, [this.escrow], { commitment: "confirmed" });
+    if (reference) this.settled.set(reference, sent);
+    return sent;
   }
 
   private async confirm(signature: string, blockhash: string) {

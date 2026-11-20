@@ -105,14 +105,14 @@ export const SwipeCard = forwardRef<
         style={{ opacity: keepOpacity }}
         className="pointer-events-none absolute left-5 top-24 rotate-[-10deg] rounded-btn border-2 border-mint px-3 py-1 text-[18px] font-bold tracking-wider text-mint"
       >
-        KEEP
+        CLAIM
       </motion.div>
       <motion.div
         aria-hidden
         style={{ opacity: goOpacity }}
         className="pointer-events-none absolute right-5 top-24 rotate-[10deg] rounded-btn border-2 border-slate px-3 py-1 text-[18px] font-bold tracking-wider text-slate"
       >
-        LET GO
+        PASS
       </motion.div>
 
       <div className="absolute inset-x-0 bottom-0 p-5">

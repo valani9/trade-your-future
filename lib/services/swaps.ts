@@ -135,27 +135,28 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
       throw new HttpError(402, "The other side is short on balance", "insufficient_funds");
     }
     const receiver = await getWalletSecret(receiverId);
-    const legOne = `leg1:${payerId}:${centsToBaseUnits(sign$).toString()}`;
-    let legOneSent = false;
+    const alreadyIn = currentSettle?.startsWith("leg1:") ?? false;
+    const attempt = alreadyIn ? (currentSettle as string) : `leg1:${payerId}:${centsToBaseUnits(sign$).toString()}:${id()}`;
     try {
-      const alreadyIn = currentSettle?.startsWith("leg1:") ?? false;
       if (!alreadyIn) {
+        // Recorded before the send so a transfer that lands and then throws is still returned.
+        await db.update(swaps).set({ settleTx: attempt }).where(eq(swaps.id, swapId));
         await solana().transfer({
           fromSecretEnc: payer.secretEnc,
           fromPubkey: payer.pubkey,
           toPubkey: ESCROW_PUBKEY(),
           baseUnits: centsToBaseUnits(sign$),
+          reference: `swap:${attempt}`,
         });
-        await db.update(swaps).set({ settleTx: legOne }).where(eq(swaps.id, swapId));
-        legOneSent = true;
       }
       settleTx = await solana().transferFromEscrow({
         toPubkey: receiver.pubkey,
         baseUnits: centsToBaseUnits(sign$ - feeCents(sign$)),
+        reference: `swap-payout:${attempt}`,
       });
     } catch (error) {
       await db.update(swaps).set({ status: "proposed", settleTx: null }).where(eq(swaps.id, swapId));
-      await returnLegOne(db, swapId, legOneSent ? legOne : null);
+      await returnLegOne(db, swapId, attempt);
       await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
       await db
         .update(plans)
@@ -187,19 +188,19 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
   return { id: swapId, status: "settled", diffCents: swap.diffCents, settleTx };
 }
 
-async function returnLegOne(db: Db, swapId: string, settleTx: string | null) {
-  if (!settleTx?.startsWith("leg1:")) return;
-  const [, payerId, baseUnits] = settleTx.split(":");
+async function returnLegOne(db: Db, swapId: string, attempt: string | null) {
+  if (!attempt?.startsWith("leg1:")) return;
+  const [tag, payerId, baseUnits, attemptId] = attempt.split(":");
   try {
     const payer = await getWalletSecret(payerId);
     const back = await solana().transferFromEscrow({
       toPubkey: payer.pubkey,
       baseUnits: BigInt(baseUnits),
-      reference: `swap-return:${swapId}`,
+      reference: `swap-return:${tag}:${payerId}:${baseUnits}:${attemptId ?? ""}`,
     });
-    await log(db, swapId, "system", "swap.leg_returned", { signature: back });
+    await log(db, swapId, "system", "swap.leg_returned", { signature: back, attemptId });
   } catch (error) {
-    await log(db, swapId, "system", "swap.leg_return_failed", { error: String(error) });
+    await log(db, swapId, "system", "swap.leg_return_failed", { error: String(error), attemptId });
   }
 }
 
@@ -239,7 +240,7 @@ export async function declineSwap(db: Db, userId: string, swapId: string) {
     .where(and(eq(swaps.id, swapId), eq(swaps.status, "proposed")))
     .returning({ id: swaps.id });
   if (!updated[0]) throw new HttpError(409, "Already handled", "illegal_transition");
-  await returnLegOne(db, swapId, swap.settleTx);
+  await returnLegOne(db, swap.id, swap.settleTx);
   await restoreAfterSwap(db, swap);
   return { id: swapId, status: "declined" };
 }

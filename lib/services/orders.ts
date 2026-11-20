@@ -497,6 +497,24 @@ export async function cronTick(db: Db, now = new Date()) {
     );
   let recovered = 0;
   for (const row of interrupted) {
+    if (solana().kind === "devnet") {
+      // On a real chain the reference lookup cannot prove a payment did not land, so leave
+      // an interrupted payout for a person rather than risk paying twice.
+      const attempted = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(auditEvents)
+        .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_sending")));
+      if ((attempted[0]?.n ?? 0) > 0) {
+        const flagged = await db
+          .select({ n: sql<number>`count(*)::int` })
+          .from(auditEvents)
+          .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_unverified")));
+        if (!flagged[0]?.n) {
+          await logEvent(db, { orderId: row.id, actorId: "system", type: "order.release_unverified" });
+        }
+        continue;
+      }
+    }
     try {
       await withLock(row.id, async () => {
         const { order } = await loadOrder(db, row.id);
