@@ -26,7 +26,7 @@ export const stepLabel = (step: string): string => {
     case "created":
       return "Claimed";
     case "funded":
-      return "Paid into escrow";
+      return "Paid";
     case "handed_over":
       return "Handed over";
     case "released":

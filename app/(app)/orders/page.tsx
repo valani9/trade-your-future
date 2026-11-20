@@ -121,6 +121,7 @@ export default function OrdersPage() {
             aria-controls={`panel-${r}`}
             tabIndex={role === r ? 0 : -1}
             onClick={() => setRole(r)}
+<<<<<<< HEAD
             onKeyDown={(e) => {
               const order = ["buyer", "seller", "trades"] as const;
               const at = order.indexOf(r);
@@ -131,6 +132,9 @@ export default function OrdersPage() {
               document.getElementById(`tab-${next}`)?.focus();
             }}
             className={`min-h-11 flex-1 rounded-pill text-[13px] font-medium transition-colors ${
+=======
+            className={`flex-1 rounded-pill min-h-11 text-[13px] font-medium transition-colors ${
+>>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
               role === r ? "bg-white/[0.08] text-ink" : "text-muted"
             }`}
           >
@@ -253,7 +257,7 @@ export default function OrdersPage() {
             <li key={order.id}>
               <Link href={`/orders/${order.id}`} className="block">
                 <Card className="flex gap-3 p-3 transition-colors hover:bg-raised">
-                  <div className="h-20 w-16 overflow-hidden rounded-xl bg-raised">
+                  <div className="h-20 w-16 overflow-hidden rounded-[14px] bg-raised">
                     {order.plan.imageUrl ? (
                       <img src={order.plan.imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : null}

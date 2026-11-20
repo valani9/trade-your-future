@@ -190,8 +190,13 @@ export default function OrderPage() {
 
       <Card className="overflow-hidden">
         <div className="flex gap-3 p-4">
+<<<<<<< HEAD
           <div className="h-24 w-20 overflow-hidden rounded-xl bg-raised">
             {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" decoding="async" className="h-full w-full object-cover" /> : null}
+=======
+          <div className="h-24 w-20 overflow-hidden rounded-[14px] bg-raised">
+            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" className="h-full w-full object-cover" /> : null}
+>>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="line-clamp-2 text-[19px] font-semibold leading-tight tracking-tighter">{order.plan.title}</h1>
@@ -237,6 +242,29 @@ export default function OrderPage() {
         </div>
       ) : null}
 
+      {order.status === "funded" && isBuyer ? (
+        <div className="mt-4 rounded-card border border-line bg-surface px-4 py-4">
+          <p className="text-[15px] font-medium">
+            Waiting on {order.sellerName?.split(" ")[0] ?? "the seller"} to hand it over
+          </p>
+          <p className="mt-1 text-[13px] text-muted">
+            Paid and held. You&apos;ll be able to confirm as soon as it lands — usually within a minute.
+          </p>
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-pill bg-white/10">
+            <div className="h-full w-1/2 animate-shimmer rounded-pill bg-coral/70" />
+          </div>
+        </div>
+      ) : null}
+
+      {order.status === "handed_over" && isSeller ? (
+        <div className="mt-4 rounded-card border border-line bg-surface px-4 py-4">
+          <p className="text-[15px] font-medium">Waiting on {order.buyerName?.split(" ")[0] ?? "the buyer"} to confirm</p>
+          <p className="mt-1 text-[13px] text-muted">
+            {formatUsd(order.netCents)} goes to you the moment they do.
+          </p>
+        </div>
+      ) : null}
+
       {order.status === "handed_over" && isBuyer ? (
         <div className="mt-4 space-y-2">
           <Button full onClick={() => act("confirm")} loading={busy === "confirm"}>
@@ -248,7 +276,7 @@ export default function OrderPage() {
         </div>
       ) : null}
 
-      {isSeller && (order.status === "funded" || order.status === "handed_over") ? (
+      {isSeller && order.status === "funded" ? (
         <div className="mt-3">
           <Button full variant="ghost" onClick={() => setHandoverOpen(true)}>
             Hand it over to {order.buyerName?.split(" ")[0] ?? "the buyer"}
