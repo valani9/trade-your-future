@@ -276,7 +276,14 @@ export default function OrdersPage() {
                 <Card className="flex gap-3 p-3 transition-colors hover:bg-raised">
                   <div className="h-20 w-16 overflow-hidden rounded-xl bg-raised">
                     {order.plan.imageUrl ? (
-                      <img src={order.plan.imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
+                      <img
+                        src={order.plan.imageUrl}
+                        alt=""
+                        loading={items.indexOf(order) === 0 ? "eager" : "lazy"}
+                        fetchPriority={items.indexOf(order) === 0 ? "high" : "auto"}
+                        decoding="async"
+                        className="h-full w-full object-cover"
+                      />
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">

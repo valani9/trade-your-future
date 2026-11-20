@@ -5,7 +5,7 @@ type Tone = "neutral" | "coral" | "slate" | "mint";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-black/55 text-ink/90 border border-white/15",
-  coral: "bg-coral/25 text-coral border border-coral/30",
+  coral: "bg-coral/25 text-[#FFB4AD] border border-coral/30",
   slate: "bg-slate/25 text-slate border border-slate/30",
   mint: "bg-mint/25 text-mint border border-mint/30",
 };
