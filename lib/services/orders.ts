@@ -151,13 +151,8 @@ export async function fundOrder(db: Db, userId: string, orderId: string) {
     const wallet = await getWalletSecret(userId);
     const balance = await solana().balance(wallet.pubkey);
     if (balance < centsToBaseUnits(order.amountCents)) {
-      const failed = await transition(db, orderId, ["created"], { status: "failed" });
-      if (failed) {
-        await db.update(listings).set({ status: "open" }).where(eq(listings.id, order.listingId));
-        await logEvent(db, { orderId, actorId: userId, type: "order.failed", payload: { reason: "insufficient_funds" } });
-        await recordMemo(db, orderId, userId, "failed");
-      }
-      throw new HttpError(402, "Not enough balance for this one", "insufficient_funds");
+      await logEvent(db, { orderId, actorId: userId, type: "order.short_balance", payload: { needed: order.amountCents } });
+      throw new HttpError(402, "Add funds and pay again — this one is still held for you", "insufficient_funds");
     }
 
     let signature: string;
@@ -170,6 +165,17 @@ export async function fundOrder(db: Db, userId: string, orderId: string) {
         reference: `fund:${orderId}`,
       });
     } catch (error) {
+      const unconfirmed = (error as { signature?: string }).signature;
+      if (unconfirmed) {
+        await transition(db, orderId, ["created"], { status: "funded", fundTx: unconfirmed });
+        await logEvent(db, {
+          orderId,
+          actorId: userId,
+          type: "order.fund_unconfirmed",
+          payload: { signature: unconfirmed, error: String(error) },
+        });
+        return serializeOrder(await loadOrder(db, orderId));
+      }
       await logEvent(db, { orderId, actorId: userId, type: "order.fund_failed", payload: { error: String(error) } });
       throw new HttpError(502, "Payment didn't go through. Try again.", "payment_failed");
     }
@@ -240,12 +246,24 @@ async function settleRelease(db: Db, orderId: string, actorId: string) {
     signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)), `release:${orderId}`);
     await db.update(orders).set({ releaseTx: signature }).where(eq(orders.id, orderId));
   } catch (error) {
-    await db
-      .update(orders)
-      .set({ status: "handed_over" })
-      .where(and(eq(orders.id, orderId), eq(orders.status, "released"), isNull(orders.releaseTx)));
-    await logEvent(db, { orderId, actorId, type: "order.release_failed", payload: { error: String(error) } });
-    throw new HttpError(502, "Couldn't complete the payout. Try again.", "payout_failed");
+    const unconfirmed = (error as { signature?: string }).signature;
+    if (unconfirmed) {
+      await db.update(orders).set({ releaseTx: unconfirmed }).where(eq(orders.id, orderId));
+      await logEvent(db, {
+        orderId,
+        actorId,
+        type: "order.release_unconfirmed",
+        payload: { signature: unconfirmed, error: String(error) },
+      });
+      signature = unconfirmed;
+    } else {
+      await db
+        .update(orders)
+        .set({ status: "handed_over" })
+        .where(and(eq(orders.id, orderId), eq(orders.status, "released"), isNull(orders.releaseTx)));
+      await logEvent(db, { orderId, actorId, type: "order.release_failed", payload: { error: String(error) } });
+      throw new HttpError(502, "Couldn't complete the payout. Try again.", "payout_failed");
+    }
   }
 
   await finishSale(db, orderId, order.listingId, order.buyerId);
@@ -299,12 +317,24 @@ export async function refundOrder(db: Db, orderId: string, actorId: string, reas
     signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents), `refund:${orderId}`);
     await db.update(orders).set({ refundTx: signature }).where(eq(orders.id, orderId));
   } catch (error) {
-    await db
-      .update(orders)
-      .set({ status: order.status })
-      .where(and(eq(orders.id, orderId), eq(orders.status, "refunded"), isNull(orders.refundTx)));
-    await logEvent(db, { orderId, actorId, type: "order.refund_failed", payload: { error: String(error) } });
-    throw new HttpError(502, "Couldn't refund. Try again.", "refund_failed");
+    const unconfirmed = (error as { signature?: string }).signature;
+    if (unconfirmed) {
+      await db.update(orders).set({ refundTx: unconfirmed }).where(eq(orders.id, orderId));
+      await logEvent(db, {
+        orderId,
+        actorId,
+        type: "order.refund_unconfirmed",
+        payload: { signature: unconfirmed, error: String(error) },
+      });
+      signature = unconfirmed;
+    } else {
+      await db
+        .update(orders)
+        .set({ status: order.status })
+        .where(and(eq(orders.id, orderId), eq(orders.status, "refunded"), isNull(orders.refundTx)));
+      await logEvent(db, { orderId, actorId, type: "order.refund_failed", payload: { error: String(error) } });
+      throw new HttpError(502, "Couldn't refund. Try again.", "refund_failed");
+    }
   }
   await db.update(listings).set({ status: "cancelled" }).where(eq(listings.id, order.listingId));
   const { plan } = await loadOrder(db, orderId);
@@ -559,6 +589,42 @@ export async function cronTick(db: Db, now = new Date()) {
     }
   }
 
+  let stranded = 0;
+  const strandedRefunds = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(and(eq(orders.status, "refunded"), isNull(orders.refundTx)))
+    .limit(20);
+  for (const row of strandedRefunds) {
+    const attempt = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(auditEvents)
+      .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.refund_sending")));
+    if ((attempt[0]?.n ?? 0) > 0) {
+      const flagged = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(auditEvents)
+        .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.refund_unverified")));
+      if (!flagged[0]?.n) {
+        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.refund_unverified" });
+      }
+      continue;
+    }
+    try {
+      await withLock(row.id, async () => {
+        const { order } = await loadOrder(db, row.id);
+        const buyer = await getWalletSecret(order.buyerId);
+        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.refund_sending" });
+        const signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents));
+        await db.update(orders).set({ refundTx: signature }).where(eq(orders.id, row.id));
+        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.refund_settled", payload: { signature } });
+        stranded++;
+      });
+    } catch {
+      // next tick
+    }
+  }
+
   const abandoned = await db
     .select({ id: orders.id })
     .from(orders)
@@ -578,5 +644,5 @@ export async function cronTick(db: Db, now = new Date()) {
       // left for the next tick
     }
   }
-  return { released, recovered, refunded, abandoned: abandonedCount, resolvedDisputes };
+  return { released, recovered, refunded, abandoned: abandonedCount, resolvedDisputes, stranded };
 }

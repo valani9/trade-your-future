@@ -22,6 +22,8 @@ export default function SettingsPage() {
       .catch(() => undefined);
   }, []);
 
+  const [confirmReset, setConfirmReset] = useState(false);
+
   async function resetDemo() {
     setResetting(true);
     try {
@@ -57,9 +59,26 @@ export default function SettingsPage() {
 
       {me?.isDemo ? (
         <div className="mt-4">
-          <Button full variant="ghost" onClick={resetDemo} loading={resetting}>
-            Reset the demo
-          </Button>
+          {confirmReset ? (
+            <div className="rounded-card border border-line bg-surface p-4">
+              <p className="text-[14px] font-medium">Reset the demo?</p>
+              <p className="mt-1 text-[13px] text-muted">
+                Every order, listing and plan goes back to the seed, and anything you paid returns to your balance.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button size="md" onClick={resetDemo} loading={resetting}>
+                  Reset it
+                </Button>
+                <Button size="md" variant="quiet" onClick={() => setConfirmReset(false)}>
+                  Keep my demo
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button full variant="ghost" onClick={() => setConfirmReset(true)}>
+              Reset the demo
+            </Button>
+          )}
         </div>
       ) : null}
 

@@ -245,7 +245,11 @@ export class DevnetSolana implements SolanaService {
     tx.recentBlockhash = blockhash;
     tx.partialSign(this.escrow, signer);
     const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
-    await this.confirm(signature, blockhash);
+    try {
+      await this.confirm(signature, blockhash);
+    } catch (error) {
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { signature });
+    }
     return signature;
   }
 
@@ -292,7 +296,11 @@ export class DevnetSolana implements SolanaService {
     tx.recentBlockhash = blockhash;
     tx.sign(this.escrow);
     const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
-    await this.confirm(signature, blockhash);
+    try {
+      await this.confirm(signature, blockhash);
+    } catch (error) {
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { signature });
+    }
     return signature;
   }
 }

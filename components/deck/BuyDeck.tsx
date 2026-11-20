@@ -32,6 +32,9 @@ export function BuyDeck({
   const [error, setError] = useState(false);
   const [exhausted, setExhausted] = useState(Boolean(initial) && !initialCursor);
   const [claim, setClaim] = useState<{ orderId: string; card: FeedCard } | null>(null);
+  const [short, setShort] = useState(false);
+  const [shortfall, setShortfall] = useState(0);
+  const [toppingUp, setToppingUp] = useState(false);
   const [paying, setPaying] = useState(false);
   const [undoLeft, setUndoLeft] = useState(0);
   const [swapOpen, setSwapOpen] = useState(false);
@@ -75,6 +78,17 @@ export function BuyDeck({
     if (!cursor || exhausted) return;
     if (cards.length - top <= 3) load(cursor).catch(() => undefined);
   }, [cards.length, top, cursor, exhausted, load]);
+
+  useEffect(() => {
+    if (!claim) {
+      setShort(false);
+      return;
+    }
+    fetch("/api/wallet", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => setShortfall(Math.max(0, Math.ceil((claim.card.priceCents - (data.balanceCents ?? 0)) / 100) * 100)))
+      .catch(() => undefined);
+  }, [claim]);
 
   useEffect(() => {
     if (undoLeft <= 0) return;
@@ -122,6 +136,27 @@ export function BuyDeck({
     }
   }
 
+  function closeClaim() {
+    setShort(false);
+    setClaim(null);
+  }
+
+  async function topUpAndPay() {
+    setToppingUp(true);
+    try {
+      const res = await fetch("/api/wallet/fund", { method: "POST" });
+      if (!res.ok) {
+        toast.show("Couldn't add funds right now", "error");
+        return;
+      }
+      setShort(false);
+      toast.show("Added $100", "money");
+      await pay();
+    } finally {
+      setToppingUp(false);
+    }
+  }
+
   async function pay() {
     if (!claim) return;
     setPaying(true);
@@ -132,11 +167,11 @@ export function BuyDeck({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast.show(data.error ?? "Payment didn't go through", "error");
         if (res.status === 402) {
-          toast.show("Not enough balance. Top up, then claim it again.", "money");
-          router.push("/wallet");
+          setShort(true);
+          return;
         }
+        toast.show(data.error ?? "Payment didn't go through", "error");
         return;
       }
       toast.show("Paid. Held until handover.", "money");
@@ -259,9 +294,9 @@ export function BuyDeck({
 
       <SwapSheet card={swapOpen ? (visible[0] ?? null) : null} onClose={() => setSwapOpen(false)} />
 
-      <Sheet open={Boolean(claim)} onClose={() => setClaim(null)} title="Claimed">
+      <Sheet open={Boolean(claim)} onClose={closeClaim} title="Claimed">
         <p className="text-[14px] leading-relaxed text-muted">
-          {claim ? claim.card.title : ""} is held for you for the next few minutes.
+          {claim ? claim.card.title : ""} is held for you for 30 minutes.
         </p>
         <div className="mt-5 rounded-btn border border-line bg-raised px-4 py-3.5">
           <div className="flex items-center justify-between">
@@ -270,11 +305,22 @@ export function BuyDeck({
           </div>
           <p className="mt-1 text-[12px] text-muted">Held until the seller hands over.</p>
         </div>
+        {short ? (
+          <div className="mt-4 rounded-btn border border-coral/30 bg-coral/[0.08] px-4 py-3">
+            <p className="text-[13px] text-ink/85">You&apos;re ${shortfall} short. Add $100 of test funds and pay now?</p>
+          </div>
+        ) : null}
         <div className="mt-5 space-y-2">
-          <Button full onClick={pay} loading={paying}>
-            Pay {claim ? formatUsd(claim.card.priceCents) : ""}
-          </Button>
-          <Button full variant="quiet" onClick={() => setClaim(null)}>
+          {short ? (
+            <Button full onClick={topUpAndPay} loading={toppingUp}>
+              Add $100 and pay
+            </Button>
+          ) : (
+            <Button full onClick={pay} loading={paying}>
+              Pay {claim ? formatUsd(claim.card.priceCents) : ""}
+            </Button>
+          )}
+          <Button full variant="quiet" onClick={closeClaim}>
             Not now
           </Button>
         </div>

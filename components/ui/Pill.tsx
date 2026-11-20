@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 type Tone = "neutral" | "coral" | "slate" | "mint";
 
 const tones: Record<Tone, string> = {
-  neutral: "bg-white/[0.07] text-ink/80",
-  coral: "bg-coral/15 text-coral",
-  slate: "bg-slate/15 text-slate",
-  mint: "bg-mint/15 text-mint",
+  neutral: "bg-black/55 text-ink/90 border border-white/15",
+  coral: "bg-coral/25 text-coral border border-coral/30",
+  slate: "bg-slate/25 text-slate border border-slate/30",
+  mint: "bg-mint/25 text-mint border border-mint/30",
 };
 
 export function Pill({

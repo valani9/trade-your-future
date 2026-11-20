@@ -45,7 +45,7 @@ test("clash banner offers a sale and the listing lands", async ({ page }) => {
   });
   await page.goto("/sell");
   await page.getByRole("link", { name: /sell/i }).first().click();
-  await expect(page.getByText(/plans at/i)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/plans overlap/i)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: /pocket the difference/i })).toBeVisible();
 
   await page.getByRole("button", { name: "Sell this one", exact: true }).click();

@@ -187,6 +187,7 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
   return { id: swapId, status: "settled", diffCents: swap.diffCents, settleTx };
 }
 
+<<<<<<< HEAD
 async function returnLegOne(db: Db, swapId: string, settleTx: string | null) {
   if (!settleTx?.startsWith("leg1:")) return;
   const [, payerId, baseUnits] = settleTx.split(":");
@@ -200,6 +201,20 @@ async function returnLegOne(db: Db, swapId: string, settleTx: string | null) {
     await log(db, swapId, "system", "swap.leg_returned", { signature: back });
   } catch (error) {
     await log(db, swapId, "system", "swap.leg_return_failed", { error: String(error) });
+=======
+async function abandonSwap(db: Db, swap: typeof swaps.$inferSelect, status: "cancelled" | "declined" = "cancelled") {
+  const pending = swap.settleTx;
+  await db.update(swaps).set({ status, settleTx: null }).where(eq(swaps.id, swap.id));
+  if (pending?.startsWith("leg1:")) {
+    const [, payerId, baseUnits] = pending.split(":");
+    try {
+      const payer = await getWalletSecret(payerId);
+      const back = await solana().transferFromEscrow({ toPubkey: payer.pubkey, baseUnits: BigInt(baseUnits) });
+      await log(db, swap.id, "system", "swap.leg_returned", { signature: back });
+    } catch (error) {
+      await log(db, swap.id, "system", "swap.leg_return_failed", { error: String(error) });
+    }
+>>>>>>> 1a046d8 (Keep claims payable after a top-up, reconcile unconfirmed payouts, refund on decline and reset, and settle the last review items)
   }
 }
 
@@ -233,6 +248,7 @@ export async function declineSwap(db: Db, userId: string, swapId: string) {
   const swap = rows[0];
   if (!swap) throw new HttpError(404, "Swap not found", "not_found");
   if (swap.counterpartyId !== userId) throw new HttpError(403, "That's not yours", "forbidden");
+<<<<<<< HEAD
   const updated = await db
     .update(swaps)
     .set({ status: "declined" })
@@ -241,6 +257,9 @@ export async function declineSwap(db: Db, userId: string, swapId: string) {
   if (!updated[0]) throw new HttpError(409, "Already handled", "illegal_transition");
   await returnLegOne(db, swapId, swap.settleTx);
   await restoreAfterSwap(db, swap);
+=======
+  await abandonSwap(db, swap, "declined");
+>>>>>>> 1a046d8 (Keep claims payable after a top-up, reconcile unconfirmed payouts, refund on decline and reset, and settle the last review items)
   return { id: swapId, status: "declined" };
 }
 

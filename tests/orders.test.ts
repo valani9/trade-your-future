@@ -57,7 +57,7 @@ describe("order state machine", () => {
     expect(done.netCents).toBe(905);
   });
 
-  it("fails cleanly when the buyer is short", async () => {
+  it("keeps the claim when the buyer is short, so a top-up can pay it", async () => {
     const db = await freshDb();
     const seller = await makeUser("Seller");
     const broke = await makeUser("Broke", { funded: false });
@@ -65,9 +65,9 @@ describe("order state machine", () => {
     const { orderId } = await createOrder(db, broke.id, listing.id);
     await expect(fundOrder(db, broke.id, orderId)).rejects.toMatchObject({ status: 402 });
     const row = (await db.select().from(orders).where(eq(orders.id, orderId)))[0];
-    expect(row.status).toBe("failed");
-    const reopened = await db.execute<{ status: string }>(`select status from listings where id = '${listing.id}'`);
-    expect((reopened as unknown as { rows: [{ status: string }] }).rows[0].status).toBe("open");
+    expect(row.status).toBe("created");
+    const held = await db.execute<{ status: string }>(`select status from listings where id = '${listing.id}'`);
+    expect((held as unknown as { rows: [{ status: string }] }).rows[0].status).toBe("pending");
   });
 
   it("rejects illegal transitions with 409", async () => {

@@ -214,7 +214,7 @@ export default function OrderPage() {
         </div>
 
         <div className="border-t border-line px-4 py-3.5">
-          <div className="flex items-center justify-between text-[12px]">
+          <div className="flex items-start justify-between text-[12px]">
             {STATUS_STEPS.map((step, i) => (
               <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
                 <div className="flex w-full items-center">
