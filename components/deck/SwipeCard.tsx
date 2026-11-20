@@ -1,6 +1,7 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import type { MarketOdds } from "@/lib/services/markets";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import type { FeedCard } from "@/lib/services/feed";
 import { formatEventDate, shortcutsBlocked } from "@/lib/utils";
@@ -28,6 +29,22 @@ export const SwipeCard = forwardRef<
   const rotate = useTransform(x, [-280, 280], [-12, 12]);
   const keepOpacity = useTransform(x, [30, 150], [0, 1]);
   const goOpacity = useTransform(x, [-150, -30], [1, 0]);
+  const [odds, setOdds] = useState<MarketOdds | null>(null);
+
+  useEffect(() => {
+    if (depth > 1 || card.category !== "sports") return;
+    let live = true;
+    const params = new URLSearchParams({ title: card.title, startsAt: card.startsAt });
+    fetch(`/api/markets?${params}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d?.odds) setOdds(d.odds as MarketOdds);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [card.category, card.title, card.startsAt, depth]);
   const locked = useRef(false);
 
   async function commit(dir: "left" | "right") {
@@ -96,6 +113,11 @@ export const SwipeCard = forwardRef<
         <div className="flex flex-col gap-1.5">
           <Pill tone="coral" className="bg-black/55 backdrop-blur-sm">{card.category}</Pill>
           <Pill className="bg-black/55 backdrop-blur-sm text-ink/90">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
+          {odds ? (
+            <Pill className="bg-black/55 backdrop-blur-sm text-ink/90" data-testid="market-odds">
+              {odds.closeGame ? "Close game" : "Odds"} · {odds.favorite.name} {Math.round(odds.favorite.probability * 100)}%
+            </Pill>
+          ) : null}
         </div>
         {card.isDemo ? <span className="rounded-pill bg-black/55 px-2 py-1 text-[12px] tracking-wide text-ink/90 backdrop-blur-sm">Demo listing</span> : null}
       </div>

@@ -1,5 +1,7 @@
 "use client";
 
+import type { MarketOdds } from "@/lib/services/markets";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus, ClipboardPaste, Heart, Tag } from "lucide-react";
@@ -34,7 +36,12 @@ export function SellDeck({
   const [top, setTop] = useState(0);
   const [sellPlan, setSellPlan] = useState<PlanCardData | null>(null);
   const [price, setPrice] = useState(0);
-  const [suggest, setSuggest] = useState<{ suggestedPriceCents: number; minPriceCents: number; maxPriceCents: number } | null>(
+  const [suggest, setSuggest] = useState<{
+    suggestedPriceCents: number;
+    minPriceCents: number;
+    maxPriceCents: number;
+    market?: MarketOdds | null;
+  } | null>(
     null,
   );
   const [busy, setBusy] = useState(false);
@@ -336,6 +343,12 @@ export function SellDeck({
                 className="mt-4 h-11 w-full accent-coral"
               />
             )}
+            {!sellPlan.listing && suggest?.market ? (
+              <p className="mt-2 text-[12px] text-muted">
+                Gemini market: {suggest.market.favorite.name} {Math.round(suggest.market.favorite.probability * 100)}% to win.{" "}
+                {suggest.market.closeGame ? "Close games resell higher, so the suggestion is up." : "A lopsided game, so the suggestion is modest."}
+              </p>
+            ) : null}
             <div className="mt-3 rounded-btn border border-line bg-raised px-4 py-3">
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-muted">You get</span>

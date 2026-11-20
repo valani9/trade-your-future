@@ -4,6 +4,7 @@ import { plans } from "@/lib/db/schema";
 import { suggestPriceCents } from "@/lib/services/plans";
 import { HttpError } from "@/lib/config";
 import { sellerNetCents } from "@/lib/money";
+import { marketAdjustedPrice, oddsForMatchup } from "@/lib/services/markets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const plan = rows[0];
     if (!plan) throw new HttpError(404, "Plan not found", "not_found");
     if (plan.userId !== userId) throw new HttpError(403, "That's not your plan", "forbidden");
-    const suggested = suggestPriceCents(plan);
+    const base = suggestPriceCents(plan);
+    const odds = plan.category === "sports" ? await oddsForMatchup(plan.title, plan.startsAt) : null;
+    const suggested = Math.min(marketAdjustedPrice(base, odds), 1_000_000);
     return json({
+      market: odds,
       suggestedPriceCents: suggested,
       suggestedNetCents: sellerNetCents(suggested),
       faceValueCents: plan.faceValueCents,

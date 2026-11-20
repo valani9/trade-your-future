@@ -282,6 +282,61 @@ export function buildDemoPlans(now = new Date()) {
   ];
 }
 
+type LiveGameRow = ReturnType<typeof buildFeedRows>[number];
+
+/**
+ * Adds a few real upcoming NBA games from the public Gemini Prediction Markets
+ * API so the live odds on sports cards have something to match. Skipped in
+ * tests and whenever the API is unreachable.
+ */
+export async function liveGameRows(now: Date, sellerCount: number, fetchImpl: typeof fetch = fetch): Promise<LiveGameRow[]> {
+  if (process.env.NODE_ENV === "test" || process.env.SEED_LIVE_GAMES === "off") return [];
+  try {
+    const url = "https://api.gemini.com/v1/prediction-markets/events?status=active&category=Sports&limit=200";
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      data?: Array<{
+        title: string;
+        startTime?: string;
+        sportsMarket?: { sport?: string; type?: string };
+        participants?: Array<{ name: string; side?: string }>;
+      }>;
+    };
+    const games = (body.data ?? []).filter(
+      (e) =>
+        e.sportsMarket?.type === "moneyline" &&
+        e.sportsMarket?.sport === "basketball" &&
+        (e.participants?.length ?? 0) === 2 &&
+        e.startTime &&
+        new Date(e.startTime).getTime() - now.getTime() > 6 * 3_600_000 &&
+        /^[A-Z][a-z]+( [A-Z][a-z]+)? [A-Z][a-z0-9]+$/.test(e.participants![0].name),
+    );
+    const nickname = (n: string) => n.split(" ").slice(-1)[0];
+    const cityOf = (n: string) => n.split(" ").slice(0, -1).join(" ");
+    return games.slice(0, 3).map((game, i) => {
+      const home = game.participants!.find((p) => p.side === "home") ?? game.participants![0];
+      const away = game.participants!.find((p) => p !== home)!;
+      const startsAt = new Date(game.startTime!);
+      return {
+        category: "sports" as Category,
+        title: `${nickname(away.name)} vs ${nickname(home.name)}`,
+        venue: `${home.name} home court`,
+        city: cityOf(home.name),
+        timeZone: CT,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 150 * 60_000),
+        faceValueCents: 9500 + i * 3000,
+        transferability: "transferable" as Transfer,
+        imageUrl: "/demo/arena-game.jpg",
+        sellerIndex: i % Math.max(1, sellerCount),
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function seedDemo(db: Db, now = new Date()) {
   const demoRow = await db.select({ id: users.id }).from(users).where(sql`${users.email} = ${DEMO_EMAIL}`).limit(1);
   let demoUserId = demoRow[0]?.id;
@@ -331,7 +386,7 @@ export async function seedDemo(db: Db, now = new Date()) {
     sellerIds.push(sid);
   }
 
-  const feed = buildFeedRows(now);
+  const feed = [...(await liveGameRows(now, sellerIds.length)), ...buildFeedRows(now)];
   const listingRows: (typeof listings.$inferInsert)[] = [];
   for (const row of feed) {
     const planId = id();
