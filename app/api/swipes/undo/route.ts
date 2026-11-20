@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { handle, json } from "@/lib/api/helpers";
 import { listings, orders, swipes } from "@/lib/db/schema";
 import { HttpError } from "@/lib/config";
@@ -21,15 +21,20 @@ export async function POST(request: Request) {
 
     await db.delete(swipes).where(and(eq(swipes.userId, userId), eq(swipes.listingId, last.listingId)));
 
-    const openOrders = await db
-      .select({ id: orders.id, status: orders.status, listingId: orders.listingId })
+    const settled = await db
+      .select({ id: orders.id, status: orders.status })
       .from(orders)
-      .where(and(eq(orders.buyerId, userId), eq(orders.listingId, last.listingId)))
+      .where(
+        and(
+          eq(orders.buyerId, userId),
+          eq(orders.listingId, last.listingId),
+          inArray(orders.status, ["created", "funded"]),
+        ),
+      )
+      .orderBy(desc(orders.createdAt))
       .limit(1);
-    const order = openOrders[0];
-    if (order && (order.status === "created" || order.status === "funded")) {
-      await undoClaim(db, userId, order.id);
-    }
+    const order = settled[0];
+    if (order) await undoClaim(db, userId, order.id);
     return json({ undone: true, listingId: last.listingId, direction: last.direction });
   });
 }

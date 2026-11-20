@@ -9,6 +9,7 @@ import { StatusPill } from "@/components/ui/Pill";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useToast } from "@/components/ui/Toast";
 import { statusLabel } from "@/components/app/orderStatus";
 
 type Order = {
@@ -38,13 +39,21 @@ export default function OrdersPage() {
   const [swaps, setSwaps] = useState<SwapRow[] | null>(null);
   const [selling, setSelling] = useState<Array<{ id: string; title: string; venue: string; city: string; priceCents: number; netCents: number }>>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const toast = useToast();
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [tradesError, setTradesError] = useState(false);
 
   const loadSwaps = useCallback(async () => {
-    const res = await fetch("/api/swaps", { cache: "no-store" });
-    if (res.ok) {
+    setTradesError(false);
+    try {
+      const res = await fetch("/api/swaps", { cache: "no-store" });
+      if (!res.ok) throw new Error("swaps");
       const data = await res.json();
       setSwaps(data.items ?? []);
+    } catch {
+      setTradesError(true);
+      setSwaps([]);
     }
   }, []);
 
@@ -52,6 +61,7 @@ export default function OrdersPage() {
     let cancelled = false;
     if (role === "trades") {
       setSwaps(null);
+      setTradesError(false);
       void loadSwaps();
       return () => {
         cancelled = true;
@@ -61,7 +71,10 @@ export default function OrdersPage() {
     setError(false);
     if (role === "seller") {
       fetch("/api/plans")
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error("plans");
+          return r.json();
+        })
         .then((data) => {
           const listed = (data.items ?? [])
             .filter((p: { listing: unknown }) => Boolean(p.listing))
@@ -75,7 +88,9 @@ export default function OrdersPage() {
             }));
           if (!cancelled) setSelling(listed);
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (!cancelled) setError(true);
+        });
     }
     fetch(`/api/orders?role=${role}`)
       .then(async (r) => {
@@ -91,14 +106,20 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [role, loadSwaps]);
+  }, [role, loadSwaps, attempt]);
 
   async function answerSwap(id: string, action: "accept" | "decline") {
     setBusy(id);
     try {
       const res = await fetch(`/api/swaps/${id}/${action}`, { method: "POST" });
-      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.show(data.error ?? "That trade didn't go through", "error");
+        return;
+      }
       await loadSwaps();
+    } catch {
+      toast.show("Connection lost. Try again.", "error");
     } finally {
       setBusy(null);
     }
@@ -145,7 +166,7 @@ export default function OrdersPage() {
           title="Couldn't load your orders."
           body="The connection dropped. Try again in a moment."
           action={
-            <Button variant="ghost" onClick={() => setRole(role)}>
+            <Button variant="ghost" onClick={() => setAttempt((n) => n + 1)}>
               Try again
             </Button>
           }
@@ -189,10 +210,10 @@ export default function OrdersPage() {
                   </p>
                   {swap.direction === "incoming" && swap.status === "proposed" ? (
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" onClick={() => answerSwap(swap.id, "accept")} loading={busy === swap.id}>
+                      <Button size="md" onClick={() => answerSwap(swap.id, "accept")} loading={busy === swap.id}>
                         Accept
                       </Button>
-                      <Button size="sm" variant="quiet" onClick={() => answerSwap(swap.id, "decline")}>
+                      <Button size="md" variant="quiet" onClick={() => answerSwap(swap.id, "decline")}>
                         Decline
                       </Button>
                     </div>

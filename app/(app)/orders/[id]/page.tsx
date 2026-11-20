@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Check, ExternalLink, Shield } from "lucide-react";
@@ -67,6 +67,7 @@ export default function OrderPage() {
   const [note, setNote] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const keys = useRef<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/orders/${params.id}`, { cache: "no-store" });
@@ -96,19 +97,27 @@ export default function OrderPage() {
     return () => clearInterval(timer);
   }, [order, load]);
 
+  // One key per attempt: a double tap replays, but a deliberate second try gets a fresh key.
+  function keyFor(action: string): string {
+    if (!keys.current[action]) keys.current[action] = `${action}-${params.id}-${crypto.randomUUID()}`;
+    return keys.current[action];
+  }
+
   async function act(action: "fund" | "confirm" | "cancel" | "dispute" | "withdraw-dispute", body?: object) {
     setBusy(action);
     try {
       const res = await fetch(`/api/orders/${params.id}/${action}`, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": `${action}-${params.id}` },
+        headers: { "content-type": "application/json", "idempotency-key": keyFor(action) },
         body: JSON.stringify(body ?? {}),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        delete keys.current[action];
         toast.show(data.error ?? "That didn't work", "error");
         return;
       }
+      delete keys.current[action];
       setDisputeOpen(false);
       await load();
       toast.show(
@@ -135,14 +144,16 @@ export default function OrderPage() {
     try {
       const res = await fetch(`/api/orders/${params.id}/handover`, {
         method: "POST",
-        headers: { "content-type": "application/json", "idempotency-key": `handover-${params.id}` },
+        headers: { "content-type": "application/json", "idempotency-key": keyFor("handover") },
         body: JSON.stringify({ note }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        delete keys.current.handover;
         toast.show(data.error ?? "That didn't work", "error");
         return;
       }
+      delete keys.current.handover;
       setHandoverOpen(false);
       await load();
       toast.show("Handed over");
@@ -349,7 +360,7 @@ export default function OrderPage() {
                   href={entry.explorer}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center justify-between rounded-btn border border-line px-3 py-2 text-[12px] text-ink/80 hover:bg-white/[0.04]"
+                  className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-white/[0.04]"
                 >
                   <span className="truncate">{i === 0 ? "Payment" : i === 1 ? "Payout" : "Receipt"}</span>
                   <ExternalLink size={13} />
@@ -362,7 +373,9 @@ export default function OrderPage() {
 
       {order.status === "refunded" ? (
         <Card className="mt-4 px-4 py-3.5">
-          <p className="text-[13px] text-mint">Refunded in full. Back in your balance.</p>
+          <p className="text-[13px] text-mint">
+            {isSeller ? "Refunded in full to the buyer." : "Refunded in full. Back in your balance."}
+          </p>
         </Card>
       ) : null}
 
@@ -405,7 +418,7 @@ export default function OrderPage() {
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="Tickets forwarded to your email"
-          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[14px] text-ink placeholder:text-faint focus:border-white/20 focus:outline-none"
+          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[14px] text-ink placeholder:text-faint focus:border-white/40 focus-visible:outline-none"
         />
         <div className="mt-4">
           <Button full onClick={handover} loading={busy === "handover"}>

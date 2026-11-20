@@ -22,6 +22,8 @@ export function Sheet({
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +42,7 @@ export function Sheet({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        onClose();
+        close.current();
         return;
       }
       if (e.key !== "Tab" || !panel.current) return;
@@ -66,7 +68,7 @@ export function Sheet({
       document.body.style.overflow = previous;
       opener.current?.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return (
     <AnimatePresence>

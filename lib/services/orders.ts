@@ -109,6 +109,7 @@ export async function createOrder(db: Db, buyerId: string, listingId: string) {
   if (!row) throw new HttpError(404, "Listing not found", "not_found");
   if (row.listing.sellerId === buyerId) throw new HttpError(403, "That's your own listing", "forbidden");
   if (row.listing.status !== "open") throw new HttpError(409, "No longer available", "unavailable");
+  if (row.plan.status !== "listed") throw new HttpError(409, "No longer available", "unavailable");
   if (row.listing.expiresAt.getTime() <= Date.now()) throw new HttpError(409, "This one sold out of time", "expired");
 
   const claimedListing = await db
@@ -166,6 +167,7 @@ export async function fundOrder(db: Db, userId: string, orderId: string) {
         fromPubkey: wallet.pubkey,
         toPubkey: ESCROW_PUBKEY(),
         baseUnits: centsToBaseUnits(order.amountCents),
+        reference: `fund:${orderId}`,
       });
     } catch (error) {
       await logEvent(db, { orderId, actorId: userId, type: "order.fund_failed", payload: { error: String(error) } });
@@ -181,7 +183,7 @@ export async function fundOrder(db: Db, userId: string, orderId: string) {
         payload: { signature, reason: "status moved before the cas" },
       });
       try {
-        const back = await payOut(wallet.pubkey, centsToBaseUnits(order.amountCents));
+        const back = await payOut(wallet.pubkey, centsToBaseUnits(order.amountCents), `fund-return:${orderId}`);
         await logEvent(db, { orderId, actorId: userId, type: "order.fund_returned", payload: { signature: back } });
       } catch {
         await logEvent(db, { orderId, actorId: userId, type: "order.fund_return_failed" });
@@ -218,8 +220,8 @@ export async function handoverOrder(
   });
 }
 
-async function payOut(toPubkey: string, baseUnits: bigint) {
-  return solana().transferFromEscrow({ toPubkey, baseUnits });
+async function payOut(toPubkey: string, baseUnits: bigint, reference: string) {
+  return solana().transferFromEscrow({ toPubkey, baseUnits, reference });
 }
 
 async function settleRelease(db: Db, orderId: string, actorId: string) {
@@ -235,7 +237,7 @@ async function settleRelease(db: Db, orderId: string, actorId: string) {
   try {
     await logEvent(db, { orderId, actorId, type: "order.release_sending" });
     const seller = await getWalletSecret(order.sellerId);
-    signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)));
+    signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)), `release:${orderId}`);
     await db.update(orders).set({ releaseTx: signature }).where(eq(orders.id, orderId));
   } catch (error) {
     await db
@@ -294,7 +296,7 @@ export async function refundOrder(db: Db, orderId: string, actorId: string, reas
   try {
     await logEvent(db, { orderId, actorId, type: "order.refund_sending" });
     const buyer = await getWalletSecret(order.buyerId);
-    signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents));
+    signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents), `refund:${orderId}`);
     await db.update(orders).set({ refundTx: signature }).where(eq(orders.id, orderId));
   } catch (error) {
     await db
@@ -495,26 +497,12 @@ export async function cronTick(db: Db, now = new Date()) {
     );
   let recovered = 0;
   for (const row of interrupted) {
-    const attempt = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(auditEvents)
-      .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_sending")));
-    if ((attempt[0]?.n ?? 0) > 0) {
-      const flagged = await db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(auditEvents)
-        .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_unverified")));
-      if (!flagged[0]?.n) {
-        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.release_unverified" });
-      }
-      continue;
-    }
     try {
       await withLock(row.id, async () => {
         const { order } = await loadOrder(db, row.id);
         const seller = await getWalletSecret(order.sellerId);
         await logEvent(db, { orderId: row.id, actorId: "system", type: "order.release_sending" });
-        const signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)));
+        const signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)), `release:${row.id}`);
         await db.update(orders).set({ releaseTx: signature }).where(eq(orders.id, row.id));
         await finishSale(db, order.id, order.listingId, order.buyerId);
         await finishRelease(db, row.id, "system", sellerNetCents(order.amountCents));

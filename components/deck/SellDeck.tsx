@@ -41,6 +41,7 @@ export function SellDeck({
   const [importOpen, setImportOpen] = useState(false);
   const [pasted, setPasted] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const deckRef = useRef<PlanHandle>(null);
 
   const load = useCallback(async () => {
@@ -48,6 +49,7 @@ export function SellDeck({
       fetch("/api/plans", { cache: "no-store" }),
       fetch("/api/clashes", { cache: "no-store" }),
     ]);
+    if (!plansRes.ok || !clashRes.ok) throw new Error("plans");
     const plansData = (await plansRes.json()) as { items: PlanCardData[] };
     const clashData = (await clashRes.json()) as { groups: ClashGroup[] };
     setPlans((plansData.items ?? []).filter((p) => p.status === "active" || p.status === "listed"));
@@ -58,13 +60,19 @@ export function SellDeck({
   useEffect(() => {
     if (initial) return;
     load()
-      .catch(() => toast.show("Couldn't load your plans", "error"))
-      .finally(() => setPlans((prev) => prev ?? []));
-  }, [load, toast, initial]);
+      .catch(() => {
+        setLoadError(true);
+        setPlans((prev) => prev ?? []);
+      });
+  }, [load, initial]);
 
   async function openSell(plan: PlanCardData) {
     setSellPlan(plan);
-    setPrice(plan.faceValueCents || 1000);
+    setPrice(plan.listing ? plan.listing.priceCents : plan.faceValueCents || 1000);
+    if (plan.listing) {
+      setSuggest(null);
+      return;
+    }
     try {
       const res = await fetch(`/api/listings/${plan.id}/suggest`, { cache: "no-store" });
       if (res.ok) {
@@ -207,7 +215,26 @@ export function SellDeck({
         </button>
       ) : null}
 
-      {plans.length === 0 ? (
+      {loadError && plans.length === 0 ? (
+        <EmptyState
+          title="Couldn't load your plans."
+          body="The connection dropped. Nothing changed."
+          action={
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setLoadError(false);
+                setPlans(null);
+                load()
+                  .catch(() => setLoadError(true))
+                  .finally(() => setPlans((prev) => prev ?? []));
+              }}
+            >
+              Try again
+            </Button>
+          }
+        />
+      ) : plans.length === 0 ? (
         <EmptyState
           title="No plans yet."
           body="Pull your calendar, or paste a confirmation and we'll read it."
@@ -255,7 +282,7 @@ export function SellDeck({
             <button
               aria-label="Sell this one"
               onClick={() => deckRef.current?.swipe("left")}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-slate text-white transition-transform active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-slate text-[#0A0B0D] transition-transform active:scale-95"
             >
               <Tag size={24} strokeWidth={2} />
             </button>
@@ -289,19 +316,21 @@ export function SellDeck({
               {sellPlan.title} · {formatEventDate(new Date(sellPlan.startsAt), sellPlan.timeZone)}
             </p>
             <div className="mt-5 flex items-baseline justify-between">
-              <span className="text-[13px] text-muted">Your price</span>
+              <span className="text-[13px] text-muted">{sellPlan.listing ? "On sale for" : "Your price"}</span>
               <span className="num text-[30px] font-semibold leading-none">{formatUsd(price)}</span>
             </div>
-            <input
-              type="range"
-              aria-label="Asking price"
-              min={suggest?.minPriceCents ?? 100}
-              max={suggest?.maxPriceCents ?? Math.max(sellPlan.faceValueCents * 3, 10000)}
-              step={100}
-              value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
-              className="mt-4 h-11 w-full accent-coral"
-            />
+            {sellPlan.listing ? null : (
+              <input
+                type="range"
+                aria-label="Asking price"
+                min={suggest?.minPriceCents ?? 100}
+                max={suggest?.maxPriceCents ?? Math.max(sellPlan.faceValueCents * 3, 10000)}
+                step={100}
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                className="mt-4 h-11 w-full accent-coral"
+              />
+            )}
             <div className="mt-3 rounded-btn border border-line bg-raised px-4 py-3">
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-muted">You get</span>
@@ -336,7 +365,7 @@ export function SellDeck({
           onChange={(e) => setPasted(e.target.value)}
           rows={5}
           placeholder="Your order for Maggie Rogers at Stubb's BBQ on Sat, Nov 21, 2026 at 7:30 PM. Total $95.00"
-          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[13px] text-ink placeholder:text-faint focus:border-white/20 focus:outline-none"
+          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[13px] text-ink placeholder:text-faint focus:border-white/40 focus-visible:outline-none"
         />
         <div className="mt-4">
           <Button full onClick={importPlan} loading={busy} disabled={pasted.trim().length < 6}>

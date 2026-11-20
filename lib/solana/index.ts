@@ -33,8 +33,14 @@ export interface SolanaService {
   createWallet(): Wallet;
   airdropTokens(pubkey: string, baseUnits: bigint): Promise<string>;
   balance(pubkey: string): Promise<bigint>;
-  transfer(args: { fromSecretEnc: string; fromPubkey: string; toPubkey: string; baseUnits: bigint }): Promise<string>;
-  transferFromEscrow(args: { toPubkey: string; baseUnits: bigint }): Promise<string>;
+  transfer(args: {
+    fromSecretEnc: string;
+    fromPubkey: string;
+    toPubkey: string;
+    baseUnits: bigint;
+    reference?: string;
+  }): Promise<string>;
+  transferFromEscrow(args: { toPubkey: string; baseUnits: bigint; reference?: string }): Promise<string>;
   memo(orderId: string, state: string): Promise<string>;
 }
 
@@ -46,6 +52,7 @@ function mockSignature(seed: string): string {
 export class MockSolana implements SolanaService {
   kind = "mock" as const;
   private balances = new Map<string, bigint>();
+  private refs = new Map<string, string>();
   private loaded = false;
 
   private ledgerPath(): string | null {
@@ -60,8 +67,12 @@ export class MockSolana implements SolanaService {
     const file = this.ledgerPath();
     if (!file) return;
     try {
-      const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, string>;
-      for (const [key, value] of Object.entries(raw)) this.balances.set(key, BigInt(value));
+      const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as
+        | { balances?: Record<string, string>; refs?: Record<string, string> }
+        | Record<string, string>;
+      const balances = "balances" in parsed ? (parsed.balances ?? {}) : (parsed as Record<string, string>);
+      for (const [key, value] of Object.entries(balances)) this.balances.set(key, BigInt(value));
+      if ("refs" in parsed && parsed.refs) for (const [key, value] of Object.entries(parsed.refs)) this.refs.set(key, value);
     } catch {
       // no ledger yet
     }
@@ -70,10 +81,13 @@ export class MockSolana implements SolanaService {
   private async save() {
     const file = this.ledgerPath();
     if (!file) return;
-    const raw = Object.fromEntries([...this.balances].map(([k, v]) => [k, v.toString()]));
+    const payload = {
+      balances: Object.fromEntries([...this.balances].map(([k, v]) => [k, v.toString()])),
+      refs: Object.fromEntries(this.refs),
+    };
     try {
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, JSON.stringify(raw));
+      fs.writeFileSync(file, JSON.stringify(payload));
     } catch {
       // best effort
     }
@@ -99,29 +113,52 @@ export class MockSolana implements SolanaService {
     fromPubkey,
     toPubkey,
     baseUnits,
+    reference,
   }: {
     fromSecretEnc: string;
     fromPubkey: string;
     toPubkey: string;
     baseUnits: bigint;
+    reference?: string;
   }): Promise<string> {
     await this.load();
+    if (reference) {
+      const seen = this.refs.get(reference);
+      if (seen) return seen;
+    }
     const from = this.balances.get(fromPubkey) ?? 0n;
     if (from < baseUnits) throw new Error("insufficient funds");
     this.balances.set(fromPubkey, from - baseUnits);
     this.balances.set(toPubkey, (this.balances.get(toPubkey) ?? 0n) + baseUnits);
+    const signature = mockSignature(`transfer:${fromPubkey}:${toPubkey}:${baseUnits}`);
+    if (reference) this.refs.set(reference, signature);
     await this.save();
-    return mockSignature(`transfer:${fromPubkey}:${toPubkey}:${baseUnits}`);
+    return signature;
   }
-  async transferFromEscrow({ toPubkey, baseUnits }: { toPubkey: string; baseUnits: bigint }): Promise<string> {
+
+  async transferFromEscrow({
+    toPubkey,
+    baseUnits,
+    reference,
+  }: {
+    toPubkey: string;
+    baseUnits: bigint;
+    reference?: string;
+  }): Promise<string> {
     await this.load();
+    if (reference) {
+      const seen = this.refs.get(reference);
+      if (seen) return seen;
+    }
     const escrow = ESCROW_PUBKEY();
     const held = this.balances.get(escrow) ?? 0n;
     if (held < baseUnits) throw new Error("escrow short");
     this.balances.set(escrow, held - baseUnits);
     this.balances.set(toPubkey, (this.balances.get(toPubkey) ?? 0n) + baseUnits);
+    const signature = mockSignature(`escrow:${toPubkey}:${baseUnits}`);
+    if (reference) this.refs.set(reference, signature);
     await this.save();
-    return mockSignature(`escrow:${toPubkey}:${baseUnits}`);
+    return signature;
   }
   async memo(orderId: string, state: string): Promise<string> {
     return mockSignature(`memo:${orderId}:${state}`);
@@ -185,11 +222,13 @@ export class DevnetSolana implements SolanaService {
     fromPubkey,
     toPubkey,
     baseUnits,
+    reference,
   }: {
     fromSecretEnc: string;
     fromPubkey: string;
     toPubkey: string;
     baseUnits: bigint;
+    reference?: string;
   }): Promise<string> {
     const { decryptSecret } = await import("@/lib/crypto");
     const signer = Keypair.fromSecretKey(decryptSecret(fromSecretEnc));
@@ -200,6 +239,7 @@ export class DevnetSolana implements SolanaService {
       createAssociatedTokenAccountIdempotentInstruction(this.escrow.publicKey, dest, new PublicKey(toPubkey), this.mint),
       createTransferInstruction(source, dest, signer.publicKey, baseUnits, [], TOKEN_PROGRAM_ID),
     );
+    if (reference) tx.add(new TransactionInstruction({ keys: [], programId: MEMO_PROGRAM_ID, data: Buffer.from(`tyf:ref:${reference}`) }));
     let blockhash = (await this.connection.getLatestBlockhash()).blockhash;
     tx.feePayer = this.escrow.publicKey;
     tx.recentBlockhash = blockhash;
@@ -209,13 +249,22 @@ export class DevnetSolana implements SolanaService {
     return signature;
   }
 
-  async transferFromEscrow({ toPubkey, baseUnits }: { toPubkey: string; baseUnits: bigint }): Promise<string> {
+  async transferFromEscrow({
+    toPubkey,
+    baseUnits,
+    reference,
+  }: {
+    toPubkey: string;
+    baseUnits: bigint;
+    reference?: string;
+  }): Promise<string> {
     const source = await this.ata(this.escrow.publicKey.toBase58());
     const dest = await this.ata(toPubkey);
     const tx = new Transaction().add(
       createAssociatedTokenAccountIdempotentInstruction(this.escrow.publicKey, dest, new PublicKey(toPubkey), this.mint),
       createTransferInstruction(source, dest, this.escrow.publicKey, baseUnits, [], TOKEN_PROGRAM_ID),
     );
+    if (reference) tx.add(new TransactionInstruction({ keys: [], programId: MEMO_PROGRAM_ID, data: Buffer.from(`tyf:ref:${reference}`) }));
     return sendAndConfirmTransaction(this.connection, tx, [this.escrow], { commitment: "confirmed" });
   }
 

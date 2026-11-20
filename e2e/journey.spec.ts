@@ -101,6 +101,10 @@ test("a buyer can flag a problem and put the order back on track", async ({ page
 
   await page.getByRole("button", { name: /never mind, finish the order/i }).click();
   await expect(page.getByRole("button", { name: /got it/i })).toBeVisible({ timeout: 20_000 });
+
+  await page.getByRole("button", { name: /something's wrong/i }).click();
+  await page.getByRole("button", { name: /put it in review/i }).click();
+  await expect(page.getByText(/the money is still held/i)).toBeVisible({ timeout: 20_000 });
 });
 
 test("arrow keys do nothing while a sheet is open", async ({ page }) => {

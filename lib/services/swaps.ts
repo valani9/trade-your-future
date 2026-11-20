@@ -85,7 +85,9 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
     want.listing.status !== "open" ||
     !offer ||
     offer.status !== "active" ||
-    offer.startsAt.getTime() <= Date.now()
+    offer.startsAt.getTime() <= Date.now() ||
+    want.listing.expiresAt.getTime() <= Date.now() ||
+    want.plan.startsAt.getTime() <= Date.now()
   ) {
     await abandonSwap(db, swap);
     throw new HttpError(409, "That trade fell through", "stale_swap");
@@ -134,6 +136,7 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
     }
     const receiver = await getWalletSecret(receiverId);
     const legOne = `leg1:${payerId}:${centsToBaseUnits(sign$).toString()}`;
+    let legOneSent = false;
     try {
       const alreadyIn = currentSettle?.startsWith("leg1:") ?? false;
       if (!alreadyIn) {
@@ -144,13 +147,15 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
           baseUnits: centsToBaseUnits(sign$),
         });
         await db.update(swaps).set({ settleTx: legOne }).where(eq(swaps.id, swapId));
+        legOneSent = true;
       }
       settleTx = await solana().transferFromEscrow({
         toPubkey: receiver.pubkey,
         baseUnits: centsToBaseUnits(sign$ - feeCents(sign$)),
       });
     } catch (error) {
-      await db.update(swaps).set({ status: "proposed" }).where(eq(swaps.id, swapId));
+      await db.update(swaps).set({ status: "proposed", settleTx: null }).where(eq(swaps.id, swapId));
+      await returnLegOne(db, swapId, legOneSent ? legOne : null);
       await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
       await db
         .update(plans)
@@ -173,32 +178,54 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
     .update(listings)
     .set({ status: "sold" })
     .where(and(eq(listings.planId, want.plan.id), inArray(listings.status, ["open", "pending"])));
+  await db
+    .update(listings)
+    .set({ status: "cancelled" })
+    .where(and(eq(listings.planId, swap.offerPlanId), inArray(listings.status, ["open", "pending"])));
   await db.update(swaps).set({ status: "settled", settleTx }).where(eq(swaps.id, swapId));
   await log(db, swapId, userId, "swap.settled", { diffCents: swap.diffCents });
   return { id: swapId, status: "settled", diffCents: swap.diffCents, settleTx };
 }
 
-async function abandonSwap(db: Db, swap: typeof swaps.$inferSelect) {
-  const pending = swap.settleTx;
-  await db.update(swaps).set({ status: "cancelled", settleTx: null }).where(eq(swaps.id, swap.id));
-  if (pending?.startsWith("leg1:")) {
-    const [, payerId, baseUnits] = pending.split(":");
-    try {
-      const payer = await getWalletSecret(payerId);
-      const back = await solana().transferFromEscrow({ toPubkey: payer.pubkey, baseUnits: BigInt(baseUnits) });
-      await log(db, swap.id, "system", "swap.leg_returned", { signature: back });
-    } catch (error) {
-      await log(db, swap.id, "system", "swap.leg_return_failed", { error: String(error) });
-    }
+async function returnLegOne(db: Db, swapId: string, settleTx: string | null) {
+  if (!settleTx?.startsWith("leg1:")) return;
+  const [, payerId, baseUnits] = settleTx.split(":");
+  try {
+    const payer = await getWalletSecret(payerId);
+    const back = await solana().transferFromEscrow({
+      toPubkey: payer.pubkey,
+      baseUnits: BigInt(baseUnits),
+      reference: `swap-return:${swapId}`,
+    });
+    await log(db, swapId, "system", "swap.leg_returned", { signature: back });
+  } catch (error) {
+    await log(db, swapId, "system", "swap.leg_return_failed", { error: String(error) });
   }
+}
+
+async function restoreAfterSwap(db: Db, swap: typeof swaps.$inferSelect) {
   const listing = (await db.select().from(listings).where(eq(listings.id, swap.wantListingId)).limit(1))[0];
   if (listing) {
     await db.update(listings).set({ status: "open" }).where(and(eq(listings.id, listing.id), eq(listings.status, "pending")));
   }
   const offer = (await db.select().from(plans).where(eq(plans.id, swap.offerPlanId)).limit(1))[0];
   if (offer) {
-    await db.update(plans).set({ status: "active" }).where(and(eq(plans.id, offer.id), eq(plans.status, "listed")));
+    const live = await db
+      .select({ id: listings.id })
+      .from(listings)
+      .where(and(eq(listings.planId, offer.id), inArray(listings.status, ["open", "pending"])))
+      .limit(1);
+    await db
+      .update(plans)
+      .set({ status: live[0] ? "listed" : "active" })
+      .where(and(eq(plans.id, offer.id), eq(plans.status, "listed")));
   }
+}
+
+async function abandonSwap(db: Db, swap: typeof swaps.$inferSelect) {
+  await db.update(swaps).set({ status: "cancelled", settleTx: null }).where(eq(swaps.id, swap.id));
+  await returnLegOne(db, swap.id, swap.settleTx);
+  await restoreAfterSwap(db, swap);
 }
 
 export async function declineSwap(db: Db, userId: string, swapId: string) {
@@ -212,6 +239,8 @@ export async function declineSwap(db: Db, userId: string, swapId: string) {
     .where(and(eq(swaps.id, swapId), eq(swaps.status, "proposed")))
     .returning({ id: swaps.id });
   if (!updated[0]) throw new HttpError(409, "Already handled", "illegal_transition");
+  await returnLegOne(db, swapId, swap.settleTx);
+  await restoreAfterSwap(db, swap);
   return { id: swapId, status: "declined" };
 }
 

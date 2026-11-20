@@ -42,7 +42,7 @@ export function Onboarding({
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-semibold tracking-tight text-muted">Trade Your Future</span>
         {!last ? (
-          <button onClick={() => setStep(slides.length - 1)} className="-mr-2 min-h-11 px-2 text-[13px] text-muted hover:text-ink">
+          <button onClick={() => setStep(slides.length - 1)} className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-3 text-[13px] text-muted hover:text-ink">
             Skip
           </button>
         ) : null}
