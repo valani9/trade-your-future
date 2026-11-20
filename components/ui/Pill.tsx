@@ -5,9 +5,9 @@ type Tone = "neutral" | "coral" | "slate" | "mint";
 
 const tones: Record<Tone, string> = {
   neutral: "bg-black/55 text-ink/90 border border-white/15",
-  coral: "bg-coral/25 text-coral border border-coral/30",
-  slate: "bg-slate/25 text-slate border border-slate/30",
-  mint: "bg-mint/25 text-mint border border-mint/30",
+  coral: "bg-[#2A1512] text-coral border border-coral/45",
+  slate: "bg-[#151832] text-slate border border-slate/45",
+  mint: "bg-[#10251D] text-mint border border-mint/45",
 };
 
 export function Pill({

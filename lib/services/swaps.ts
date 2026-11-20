@@ -245,6 +245,20 @@ export async function declineSwap(db: Db, userId: string, swapId: string) {
   return { id: swapId, status: "declined" };
 }
 
+export async function recoverStuckSwaps(db: Db, now = new Date()) {
+  const rows = await db
+    .select()
+    .from(swaps)
+    .where(and(eq(swaps.status, "accepted"), sql`${swaps.createdAt} <= ${new Date(now.getTime() - 10 * 60_000)}`))
+    .limit(10);
+  let recovered = 0;
+  for (const swap of rows) {
+    await abandonSwap(db, swap);
+    recovered++;
+  }
+  return recovered;
+}
+
 const BOT_DELAY_MS = 5000;
 
 export async function maybeAutoAccept(db: Db, swapId: string) {

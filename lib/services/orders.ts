@@ -662,5 +662,13 @@ export async function cronTick(db: Db, now = new Date()) {
       // left for the next tick
     }
   }
-  return { released, recovered, refunded, abandoned: abandonedCount, resolvedDisputes, stranded };
+  let swapsRecovered = 0;
+  try {
+    const { recoverStuckSwaps } = await import("./swaps");
+    swapsRecovered = await recoverStuckSwaps(db, now);
+  } catch {
+    swapsRecovered = 0;
+  }
+
+  return { released, recovered, refunded, abandoned: abandonedCount, resolvedDisputes, stranded, swapsRecovered };
 }

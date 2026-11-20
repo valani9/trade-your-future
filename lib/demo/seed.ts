@@ -398,14 +398,18 @@ export async function ensureSeed(db: Db) {
 
 export async function resetDemo(db: Db) {
   const live = await db.execute<{ id: string; buyer_id: string; amount_cents: number }>(
-    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over')`,
+    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over','disputed')`,
   );
   const rows = (live as unknown as { rows: Array<{ id: string; buyer_id: string; amount_cents: number }> }).rows ?? [];
   for (const row of rows) {
     const buyer = await db.select({ pubkey: users.walletPubkey }).from(users).where(eq(users.id, row.buyer_id)).limit(1);
     if (!buyer[0]) continue;
     try {
-      await solana().transferFromEscrow({ toPubkey: buyer[0].pubkey, baseUnits: centsToBaseUnits(row.amount_cents) });
+      await solana().transferFromEscrow({
+        toPubkey: buyer[0].pubkey,
+        baseUnits: centsToBaseUnits(row.amount_cents),
+        reference: `refund:${row.id}`,
+      });
     } catch {
       // nothing was escrowed for that order
     }
