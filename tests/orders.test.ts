@@ -157,6 +157,20 @@ describe("order state machine", () => {
     expect(await balance(buyer.walletPubkey)).toBe(before - centsToBaseUnits(5000));
   });
 
+  it("requires an Idempotency-Key on order actions", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const buyer = await makeUser("Buyer");
+    const { listing } = await makeListing(seller.id, {}, 5000);
+    const { orderId } = await createOrder(db, buyer.id, listing.id);
+    currentUser = { id: buyer.id };
+    const { POST } = await import("@/app/api/orders/[id]/fund/route");
+    const res = await POST(new Request(`http://localhost/api/orders/${orderId}/fund`, { method: "POST" }), {
+      params: Promise.resolve({ id: orderId }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it("refunds the buyer when the seller cancels", async () => {
     const db = await freshDb();
     const seller = await makeUser("Seller");

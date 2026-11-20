@@ -59,6 +59,13 @@ async function main() {
       ["/settings", "settings"],
       ["/styleguide", "styleguide"],
     ];
+    const extraRoutes: Array<[string, string]> = [];
+    const orderId = await page.evaluate(async () => {
+      const list = await (await fetch("/api/orders?role=buyer")).json();
+      return list.items?.[0]?.id ?? null;
+    });
+    if (orderId) extraRoutes.push([`/orders/${orderId}`, "order-detail"]);
+    routes.push(...extraRoutes);
     for (const [route, name] of routes) {
       await page.goto(`${BASE}${route}`, { waitUntil: "networkidle" });
       await page.waitForTimeout(700);

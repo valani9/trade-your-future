@@ -78,19 +78,33 @@ export async function withIdempotency(
   fn: () => Promise<{ status: number; body: unknown }>,
 ): Promise<Response> {
   const key = ctx.request.headers.get("idempotency-key");
-  if (!key) return respond(await fn());
+  if (!key) throw new HttpError(400, "Idempotency-Key header is required", "missing_idempotency_key");
   if (key.length < 8 || key.length > 128) throw new HttpError(400, "Invalid Idempotency-Key", "invalid_input");
+  const fingerprint = await requestFingerprint(ctx.request);
   const existing = await ctx.db
     .select()
     .from(idempotencyKeys)
     .where(and(eq(idempotencyKeys.userId, ctx.userId), eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key)))
     .limit(1);
-  if (existing[0]) return json(existing[0].body, existing[0].statusCode);
+  if (existing[0]) {
+    const stored = existing[0].body as { __fingerprint?: string; response?: unknown };
+    if (stored.__fingerprint && stored.__fingerprint !== fingerprint) {
+      throw new HttpError(422, "That key was already used for a different request", "idempotency_mismatch");
+    }
+    return json(stored.response ?? existing[0].body, existing[0].statusCode);
+  }
   const result = await fn();
   if (result.status < 500) {
     await ctx.db
       .insert(idempotencyKeys)
-      .values({ id: id(), userId: ctx.userId, scope, key, statusCode: result.status, body: result.body as object })
+      .values({
+        id: id(),
+        userId: ctx.userId,
+        scope,
+        key,
+        statusCode: result.status,
+        body: { __fingerprint: fingerprint, response: result.body } as object,
+      })
       .onConflictDoNothing();
   }
   return respond(result);
@@ -98,4 +112,11 @@ export async function withIdempotency(
 
 function respond(result: { status: number; body: unknown }) {
   return json(result.body, result.status);
+}
+
+async function requestFingerprint(request: Request): Promise<string> {
+  const url = new URL(request.url);
+  const raw = await request.clone().text();
+  const { createHash } = await import("node:crypto");
+  return createHash("sha256").update(`${request.method}:${url.pathname}:${raw}`).digest("hex").slice(0, 32);
 }

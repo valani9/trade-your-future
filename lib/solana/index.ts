@@ -20,7 +20,9 @@ import bs58 from "bs58";
 import crypto from "node:crypto";
 import { config } from "@/lib/config";
 import { encryptSecret } from "@/lib/crypto";
-import { TOKEN_DECIMALS } from "@/lib/money";
+import { TOKEN_DECIMALS, centsToBaseUnits } from "@/lib/money";
+import fs from "node:fs";
+import path from "node:path";
 
 export const MEMO_PROGRAM_ID = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
@@ -41,9 +43,42 @@ function mockSignature(seed: string): string {
   return bs58.encode(h);
 }
 
-class MockSolana implements SolanaService {
+export class MockSolana implements SolanaService {
   kind = "mock" as const;
   private balances = new Map<string, bigint>();
+  private loaded = false;
+
+  private ledgerPath(): string | null {
+    const dir = process.env.PGLITE_DIR ?? (process.env.NODE_ENV === "test" ? "memory://" : "./.pgdata");
+    if (dir === "memory://" || dir.startsWith("memory:")) return null;
+    return path.join(dir, "mock-ledger.json");
+  }
+
+  private async load() {
+    if (this.loaded) return;
+    this.loaded = true;
+    const file = this.ledgerPath();
+    if (!file) return;
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, string>;
+      for (const [key, value] of Object.entries(raw)) this.balances.set(key, BigInt(value));
+    } catch {
+      // no ledger yet
+    }
+  }
+
+  private async save() {
+    const file = this.ledgerPath();
+    if (!file) return;
+    const raw = Object.fromEntries([...this.balances].map(([k, v]) => [k, v.toString()]));
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(raw));
+    } catch {
+      // best effort
+    }
+  }
+
   createWallet(): Wallet {
     const pubkey = bs58.encode(crypto.createHash("sha256").update(crypto.randomUUID()).digest());
     const secret = bs58.encode(crypto.randomBytes(64));
@@ -51,10 +86,13 @@ class MockSolana implements SolanaService {
     return { pubkey, secretEnc: encryptSecret(Buffer.from(secret, "utf8")) };
   }
   async airdropTokens(pubkey: string, baseUnits: bigint): Promise<string> {
+    await this.load();
     this.balances.set(pubkey, (this.balances.get(pubkey) ?? 0n) + baseUnits);
+    await this.save();
     return mockSignature(`mint:${pubkey}`);
   }
   async balance(pubkey: string): Promise<bigint> {
+    await this.load();
     return this.balances.get(pubkey) ?? 0n;
   }
   async transfer({
@@ -67,18 +105,22 @@ class MockSolana implements SolanaService {
     toPubkey: string;
     baseUnits: bigint;
   }): Promise<string> {
+    await this.load();
     const from = this.balances.get(fromPubkey) ?? 0n;
     if (from < baseUnits) throw new Error("insufficient funds");
     this.balances.set(fromPubkey, from - baseUnits);
     this.balances.set(toPubkey, (this.balances.get(toPubkey) ?? 0n) + baseUnits);
+    await this.save();
     return mockSignature(`transfer:${fromPubkey}:${toPubkey}:${baseUnits}`);
   }
   async transferFromEscrow({ toPubkey, baseUnits }: { toPubkey: string; baseUnits: bigint }): Promise<string> {
+    await this.load();
     const escrow = ESCROW_PUBKEY();
     const held = this.balances.get(escrow) ?? 0n;
     if (held < baseUnits) throw new Error("escrow short");
     this.balances.set(escrow, held - baseUnits);
     this.balances.set(toPubkey, (this.balances.get(toPubkey) ?? 0n) + baseUnits);
+    await this.save();
     return mockSignature(`escrow:${toPubkey}:${baseUnits}`);
   }
   async memo(orderId: string, state: string): Promise<string> {
@@ -158,10 +200,13 @@ export class DevnetSolana implements SolanaService {
       createAssociatedTokenAccountIdempotentInstruction(this.escrow.publicKey, dest, new PublicKey(toPubkey), this.mint),
       createTransferInstruction(source, dest, signer.publicKey, baseUnits, [], TOKEN_PROGRAM_ID),
     );
+    let blockhash = (await this.connection.getLatestBlockhash()).blockhash;
     tx.feePayer = this.escrow.publicKey;
-    tx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+    tx.recentBlockhash = blockhash;
     tx.partialSign(this.escrow, signer);
-    return this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    await this.confirm(signature, blockhash);
+    return signature;
   }
 
   async transferFromEscrow({ toPubkey, baseUnits }: { toPubkey: string; baseUnits: bigint }): Promise<string> {
@@ -174,6 +219,18 @@ export class DevnetSolana implements SolanaService {
     return sendAndConfirmTransaction(this.connection, tx, [this.escrow], { commitment: "confirmed" });
   }
 
+  private async confirm(signature: string, blockhash: string) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const status = await this.connection.getSignatureStatuses([signature]);
+      const value = status.value[0];
+      if (value?.err) throw new Error(`transaction failed: ${JSON.stringify(value.err)}`);
+      if (value?.confirmationStatus === "confirmed" || value?.confirmationStatus === "finalized") return;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    void blockhash;
+    throw new Error("transaction was not confirmed in time");
+  }
+
   async memo(orderId: string, state: string): Promise<string> {
     const instruction = new TransactionInstruction({
       programId: MEMO_PROGRAM_ID,
@@ -181,10 +238,13 @@ export class DevnetSolana implements SolanaService {
       data: Buffer.from(`tyf:${orderId}:${state}`, "utf8"),
     });
     const tx = new Transaction().add(instruction);
+    let blockhash = (await this.connection.getLatestBlockhash()).blockhash;
     tx.feePayer = this.escrow.publicKey;
-    tx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+    tx.recentBlockhash = blockhash;
     tx.sign(this.escrow);
-    return this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    await this.confirm(signature, blockhash);
+    return signature;
   }
 }
 
@@ -206,6 +266,6 @@ export const ESCROW_PUBKEY = () => {
   }
 };
 
-export const STARTING_TOKENS = 500n * 10_000_000n;
+export const STARTING_TOKENS = centsToBaseUnits(50_000);
 export const SOL_AIRDROP = 0.5 * LAMPORTS_PER_SOL;
 export { SystemProgram };

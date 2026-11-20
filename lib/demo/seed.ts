@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 import { listings, plans, users } from "@/lib/db/schema";
 import { solana } from "@/lib/solana";
+import { centsToBaseUnits } from "@/lib/money";
 import { id } from "@/lib/utils";
 import { DEMO_EMAIL } from "@/lib/auth/users";
 
@@ -299,6 +300,10 @@ export async function seedDemo(db: Db, now = new Date()) {
     const email = `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@sellers.tyf.app`;
     const found = await db.select({ id: users.id }).from(users).where(sql`${users.email} = ${email}`).limit(1);
     if (found[0]) {
+      const wallet = await db.select({ walletPubkey: users.walletPubkey }).from(users).where(sql`${users.email} = ${email}`).limit(1);
+      if (wallet[0] && (await solana().balance(wallet[0].walletPubkey)) < centsToBaseUnits(10_000)) {
+        await solana().airdropTokens(wallet[0].walletPubkey, centsToBaseUnits(50_000));
+      }
       sellerIds.push(found[0].id);
       continue;
     }
@@ -312,6 +317,7 @@ export async function seedDemo(db: Db, now = new Date()) {
       walletPubkey: wallet.pubkey,
       walletSecretEnc: wallet.secretEnc,
     });
+    await solana().airdropTokens(wallet.pubkey, centsToBaseUnits(50_000));
     sellerIds.push(sid);
   }
 

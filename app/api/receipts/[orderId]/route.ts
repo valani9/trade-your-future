@@ -1,5 +1,6 @@
 import { handle, json } from "@/lib/api/helpers";
-import { getOrder } from "@/lib/services/orders";
+import { getOrder, orderMemos } from "@/lib/services/orders";
+import { solana } from "@/lib/solana";
 import { ESCROW_PUBKEY } from "@/lib/solana";
 import { config } from "@/lib/config";
 
@@ -26,6 +27,12 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
       released: { signature: order.releaseTx, explorer: link(order.releaseTx) },
       refunded: { signature: order.refundTx, explorer: link(order.refundTx) },
       memo: { signature: order.memoTx, explorer: link(order.memoTx) },
+      memos: (await orderMemos(db, orderId, userId)).map((entry) => ({
+        memo: entry.memo,
+        signature: entry.signature,
+        explorer: link(entry.signature),
+      })),
+      simulated: solana().kind === "mock",
     });
   });
 }

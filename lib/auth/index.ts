@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
@@ -6,9 +7,20 @@ import { DEMO_EMAIL, getOrCreateUser } from "./users";
 
 const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
+function authSecret(): string {
+  const configured = process.env.NEXTAUTH_SECRET;
+  if (configured) return configured;
+  if ((process.env.DEMO_MODE ?? "true") === "false" && process.env.NODE_ENV === "production") {
+    throw new Error("NEXTAUTH_SECRET is required outside demo mode");
+  }
+  const store = globalThis as { __tyfAuthSecret?: string };
+  if (!store.__tyfAuthSecret) store.__tyfAuthSecret = crypto.randomUUID() + crypto.randomUUID();
+  return store.__tyfAuthSecret;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  secret: process.env.NEXTAUTH_SECRET ?? "local-development-secret",
+  secret: authSecret(),
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 30 },
   pages: { signIn: "/" },
   providers: [

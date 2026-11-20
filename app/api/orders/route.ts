@@ -9,8 +9,8 @@ const schema = z.object({ listingId: z.string().min(1) });
 
 export async function POST(request: Request) {
   return handle(request, async (ctx) => {
-    const input = await body(request, (v) => schema.parse(v));
     return withIdempotency(ctx, "orders.create", async () => {
+      const input = await body(request, (v) => schema.parse(v));
       const order = await createOrder(ctx.db, ctx.userId, input.listingId);
       return { status: 201, body: order };
     });

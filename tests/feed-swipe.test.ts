@@ -69,6 +69,28 @@ describe("feed", () => {
     expect(seen.length).toBe(seeded.listingCount);
   });
 
+  it("returns 401 to an unauthenticated feed request", async () => {
+    await freshDb();
+    currentUser = null;
+    const { GET } = await import("@/app/api/feed/route");
+    const res = await GET(new Request("http://localhost/api/feed"));
+    expect(res.status).toBe(401);
+  });
+
+  it("excludes pending and sold listings", async () => {
+    const db = await freshDb();
+    const me = await makeUser("Me");
+    const other = await makeUser("Other");
+    const pending = await makeListing(other.id);
+    const sold = await makeListing(other.id);
+    await db.execute(`update listings set status = 'pending' where id = '${pending.listing.id}'`);
+    await db.execute(`update listings set status = 'sold' where id = '${sold.listing.id}'`);
+    const page = await getFeed(db, me.id, null);
+    const ids = page.items.map((i) => i.listingId);
+    expect(ids).not.toContain(pending.listing.id);
+    expect(ids).not.toContain(sold.listing.id);
+  });
+
   it("orders by startsAt ascending", async () => {
     const db = await freshDb();
     const me = await makeUser("Sorter");

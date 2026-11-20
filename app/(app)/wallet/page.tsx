@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { formatUsd } from "@/lib/money";
 
-type Wallet = { balanceCents: number; demo: boolean };
+type Wallet = { balanceCents: number; heldCents: number; demo: boolean };
 
 export default function WalletPage() {
   const toast = useToast();
@@ -67,8 +67,8 @@ export default function WalletPage() {
 
       <Card className="mt-6">
         <Row>
-          <span className="text-[13px] text-muted">Held in escrow</span>
-          <span className="text-[13px] text-ink/70">See orders</span>
+          <span className="text-[13px] text-muted">Held until handover</span>
+          <span className="num text-[13px] text-ink/80">{formatUsd(wallet?.heldCents ?? 0)}</span>
         </Row>
         <Link href="/orders" className="block">
           <Row className="hover:bg-raised">

@@ -45,6 +45,7 @@ type Order = {
 };
 
 type Receipt = {
+  simulated?: boolean;
   funded: { signature: string | null; explorer: string | null };
   released: { signature: string | null; explorer: string | null };
   refunded: { signature: string | null; explorer: string | null };
@@ -175,16 +176,16 @@ export default function OrderPage() {
             {STATUS_STEPS.map((step, i) => (
               <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
                 <div className="flex w-full items-center">
-                  <span className={`h-px flex-1 ${i === 0 ? "bg-transparent" : i <= stepIndex ? "bg-mint/60" : "bg-white/10"}`} />
+                  <span className={`h-px flex-1 ${i === 0 ? "bg-transparent" : i <= stepIndex ? "bg-white/30" : "bg-white/10"}`} />
                   <span
                     className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] ${
-                      i <= stepIndex ? "border-mint/50 bg-mint/15 text-mint" : "border-white/12 text-faint"
+                      i <= stepIndex ? "border-white/25 bg-white/10 text-ink" : "border-white/12 text-faint"
                     }`}
                   >
                     {i <= stepIndex ? <Check size={11} strokeWidth={3} /> : i + 1}
                   </span>
                   <span
-                    className={`h-px flex-1 ${i === STATUS_STEPS.length - 1 ? "bg-transparent" : i < stepIndex ? "bg-mint/60" : "bg-white/10"}`}
+                    className={`h-px flex-1 ${i === STATUS_STEPS.length - 1 ? "bg-transparent" : i < stepIndex ? "bg-white/30" : "bg-white/10"}`}
                   />
                 </div>
                 <span className={`text-center text-[10px] ${i <= stepIndex ? "text-ink/80" : "text-faint"}`}>
@@ -260,9 +261,13 @@ export default function OrderPage() {
           </div>
           <div className="space-y-2 px-5 py-4">
             <p className="flex items-center gap-1.5 text-[12px] text-muted">
-              <Shield size={13} className="text-mint" /> Secured on Solana
+              <Shield size={13} className="text-mint" />
+              {receipt.simulated ? "Held safely until you confirm" : "Secured on Solana"}
             </p>
-            {[receipt.funded, receipt.released, receipt.memo].map((entry, i) =>
+            {receipt.simulated ? (
+              <p className="text-[12px] text-faint">This demo records its own receipts instead of public transactions.</p>
+            ) : null}
+            {(receipt.simulated ? [] : [receipt.funded, receipt.released, receipt.memo]).map((entry, i) =>
               entry.explorer ? (
                 <a
                   key={i}

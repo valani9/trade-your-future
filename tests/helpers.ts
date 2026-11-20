@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb, type Db } from "@/lib/db";
-import { plans, listings, users } from "@/lib/db/schema";
+import { plans, listings, users, orders } from "@/lib/db/schema";
 import { solana, STARTING_TOKENS } from "@/lib/solana";
 import crypto from "node:crypto";
 
@@ -58,6 +58,21 @@ export async function makePlan(
     ...overrides,
   });
   return (await db.select().from(plans).where(sql`${plans.id} = ${id}`).limit(1))[0]!;
+}
+
+export async function makeOrder(buyerId: string, listingId: string, sellerId: string, amountCents = 5000) {
+  const db = await getDb();
+  const orderId = crypto.randomUUID();
+  await db.insert(orders).values({
+    id: orderId,
+    listingId,
+    buyerId,
+    sellerId,
+    amountCents,
+    feeCents: Math.floor(amountCents / 10),
+    status: "created",
+  });
+  return (await db.select().from(orders).where(sql`${orders.id} = ${orderId}`).limit(1))[0]!;
 }
 
 export async function makeListing(sellerId: string, overrides: Partial<typeof plans.$inferInsert> = {}, priceCents?: number) {

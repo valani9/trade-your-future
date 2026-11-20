@@ -231,6 +231,39 @@ describe("calendar sync", () => {
     expect(after[0].status).toBe("expired");
   });
 
+  it("skips declined events", async () => {
+    const db = await freshDb();
+    const me = await makeUser("Me");
+    const { users } = await import("@/lib/db/schema");
+    await db
+      .update(users)
+      .set({ googleAccessToken: "fake", googleExpiresAt: new Date(Date.now() + 3_600_000) })
+      .where(eq(users.id, me.id));
+    const events = [
+      {
+        id: "declined",
+        summary: "Dinner at Uchi",
+        location: "Austin",
+        start: { dateTime: "2026-12-01T19:00:00Z" },
+        end: { dateTime: "2026-12-01T21:00:00Z" },
+        attendees: [{ self: true, responseStatus: "declined" }],
+      },
+      {
+        id: "accepted",
+        summary: "Sushi at Uchi",
+        location: "Austin",
+        start: { dateTime: "2026-12-02T19:00:00Z" },
+        end: { dateTime: "2026-12-02T21:00:00Z" },
+        attendees: [{ self: true, responseStatus: "accepted" }],
+      },
+    ];
+    const fakeFetch = (async () => ({ ok: true, status: 200, json: async () => ({ items: events }) })) as unknown as typeof fetch;
+    await syncCalendar(db, me.id, fakeFetch);
+    const mine = await db.select().from(plans).where(eq(plans.userId, me.id));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].title).toBe("Sushi at Uchi");
+  });
+
   it("skips declined events and requires a reconnect without a token", async () => {
     const db = await freshDb();
     const me = await makeUser("Me");

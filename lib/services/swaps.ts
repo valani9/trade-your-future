@@ -81,12 +81,33 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
     throw new HttpError(409, "That trade fell through", "stale_swap");
   }
 
+  const currentSettle = swap.settleTx;
+  const listingClaim = await db
+    .update(listings)
+    .set({ status: "pending" })
+    .where(and(eq(listings.id, want.listing.id), eq(listings.status, "open")))
+    .returning({ id: listings.id });
+  if (!listingClaim[0]) throw new HttpError(409, "That trade fell through", "stale_swap");
+  const planClaim = await db
+    .update(plans)
+    .set({ status: "listed" })
+    .where(and(eq(plans.id, offerRows[0].id), eq(plans.status, "active")))
+    .returning({ id: plans.id });
+  if (!planClaim[0]) {
+    await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
+    throw new HttpError(409, "That trade fell through", "stale_swap");
+  }
+
   const claimed = await db
     .update(swaps)
-    .set({ status: "accepted" })
+    .set({ status: "accepted", settleTx: currentSettle ?? null })
     .where(and(eq(swaps.id, swapId), eq(swaps.status, "proposed")))
     .returning({ id: swaps.id });
-  if (!claimed[0]) throw new HttpError(409, "Already handled", "illegal_transition");
+  if (!claimed[0]) {
+    await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
+    await db.update(plans).set({ status: "active" }).where(eq(plans.id, offerRows[0].id));
+    throw new HttpError(409, "Already handled", "illegal_transition");
+  }
 
   const sign$ = Math.abs(swap.diffCents);
   let settleTx: string | null = null;
@@ -97,22 +118,29 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
     const balance = await solana().balance(payer.pubkey);
     if (balance < centsToBaseUnits(sign$)) {
       await db.update(swaps).set({ status: "proposed" }).where(eq(swaps.id, swapId));
+      await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
+      await db.update(plans).set({ status: "active" }).where(eq(plans.id, offerRows[0].id));
       throw new HttpError(402, "The other side is short on balance", "insufficient_funds");
     }
+    const receiver = await getWalletSecret(receiverId);
+    const legOne = `leg1:${payerId}:${centsToBaseUnits(sign$).toString()}`;
     try {
-      await solana().transfer({
-        fromSecretEnc: payer.secretEnc,
-        fromPubkey: payer.pubkey,
-        toPubkey: ESCROW_PUBKEY(),
-        baseUnits: centsToBaseUnits(sign$),
-      });
-      const receiver = await getWalletSecret(receiverId);
+      const alreadyIn = currentSettle?.startsWith("leg1:") ?? false;
+      if (!alreadyIn) {
+        await solana().transfer({
+          fromSecretEnc: payer.secretEnc,
+          fromPubkey: payer.pubkey,
+          toPubkey: ESCROW_PUBKEY(),
+          baseUnits: centsToBaseUnits(sign$),
+        });
+        await db.update(swaps).set({ settleTx: legOne }).where(eq(swaps.id, swapId));
+      }
       settleTx = await solana().transferFromEscrow({
         toPubkey: receiver.pubkey,
         baseUnits: centsToBaseUnits(sign$ - feeCents(sign$)),
       });
     } catch (error) {
-      await db.update(swaps).set({ status: "proposed" }).where(eq(swaps.id, swapId));
+      await db.update(swaps).set({ status: "accepted" }).where(eq(swaps.id, swapId));
       throw new HttpError(502, "The payment didn't go through", "settlement_failed");
     }
   }
