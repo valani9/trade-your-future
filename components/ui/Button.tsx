@@ -5,8 +5,8 @@ type Variant = "primary" | "letgo" | "ghost" | "quiet" | "danger";
 type Size = "lg" | "md" | "sm";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-coral text-white hover:brightness-105 active:brightness-95",
-  letgo: "bg-slate text-white hover:brightness-105 active:brightness-95",
+  primary: "bg-coral text-[#0A0B0D] hover:brightness-105 active:brightness-95",
+  letgo: "bg-slate text-[#0A0B0D] hover:brightness-105 active:brightness-95",
   ghost: "bg-white/[0.06] text-ink hover:bg-white/[0.1] active:bg-white/[0.08]",
   quiet: "bg-transparent text-muted hover:text-ink hover:bg-white/[0.05]",
   danger: "bg-transparent text-coral border border-coral/40 hover:bg-coral/10",

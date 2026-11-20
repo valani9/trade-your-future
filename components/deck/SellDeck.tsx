@@ -163,7 +163,11 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
       </header>
 
       {clashPlans.length >= 2 ? (
-        <button onClick={() => openSell(clashPlans[1])} className="mb-4 block w-full text-left">
+        <button
+          onClick={() => openSell(clashPlans[1])}
+          aria-label={`Sell ${clashPlans[1].title} to resolve the clash`}
+          className="mb-4 block w-full text-left"
+        >
           <Card className="border-coral/25 bg-coral/[0.07] px-4 py-3.5">
             <p className="text-[13px] font-medium text-coral">
               {clashPlans.length} plans at {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone).split(" · ")[0]} ·{" "}

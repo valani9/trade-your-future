@@ -151,6 +151,17 @@ const sellers = [
   "Owen Brady",
 ];
 
+const TZ_OFFSET: Record<string, number> = {
+  "America/Chicago": 6,
+  "America/New_York": 5,
+  "America/Los_Angeles": 8,
+};
+
+export function localTime(day: Date, hour: number, minute: number, timeZone: string): Date {
+  const offset = TZ_OFFSET[timeZone] ?? 6;
+  return new Date(day.getTime() + (hour + offset) * 3_600_000 + minute * 60_000);
+}
+
 function startOfDay(base: Date, offsetDays: number): Date {
   const d = new Date(base);
   d.setUTCHours(0, 0, 0, 0);
@@ -186,7 +197,7 @@ export function buildFeedRows(now = new Date()) {
         const dayOffset = offsets[(count + k + round) % offsets.length];
         const hour = template.hours[(count + k) % template.hours.length];
         const startDay = startOfDay(now, dayOffset);
-        const startsAt = new Date(startDay.getTime() + hour * 3_600_000 + 15 * 60_000);
+        const startsAt = localTime(startDay, hour, 15, venue[2]);
         if (startsAt.getTime() - now.getTime() < 6 * 3_600_000) continue;
         const endsAt = new Date(startsAt.getTime() + template.durationMin * 60_000);
         const span = template.price[1] - template.price[0];
@@ -246,8 +257,8 @@ export function buildDemoPlans(now = new Date()) {
       venue: "Austin-Bergstrom",
       city: "Austin",
       timeZone: CT,
-      startsAt: new Date(startOfDay(now, 9).getTime() + 7 * 3_600_000 + 40 * 60_000),
-      endsAt: new Date(startOfDay(now, 9).getTime() + 11 * 3_600_000 + 40 * 60_000),
+      startsAt: localTime(startOfDay(now, 9), 7, 40, CT),
+      endsAt: localTime(startOfDay(now, 9), 11, 40, CT),
       faceValueCents: 31000,
       transferability: "name_change" as Transfer,
       imageUrl: "/demo/plane-window.jpg",
@@ -258,8 +269,8 @@ export function buildDemoPlans(now = new Date()) {
       venue: "Salt & Time Kitchen",
       city: "Austin",
       timeZone: CT,
-      startsAt: new Date(startOfDay(now, 14).getTime() + 18 * 3_600_000),
-      endsAt: new Date(startOfDay(now, 14).getTime() + 20 * 3_600_000),
+      startsAt: localTime(startOfDay(now, 14), 18, 0, CT),
+      endsAt: localTime(startOfDay(now, 14), 20, 0, CT),
       faceValueCents: 6500,
       transferability: "transferable" as Transfer,
       imageUrl: "/demo/pottery-studio.jpg",

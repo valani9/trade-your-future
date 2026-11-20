@@ -20,7 +20,7 @@ test("deck renders, swipes both ways, and undoes", async ({ page }) => {
   });
 
   const firstTitle = await page.locator("h2").first().innerText();
-  await page.getByRole("button", { name: "Let it go" }).click();
+  await page.getByRole("button", { name: "Let it go", exact: true }).click();
   await page.waitForTimeout(800);
   const afterLeft = await page.locator("h2").first().innerText();
   expect(afterLeft).not.toBe(firstTitle);
@@ -29,7 +29,7 @@ test("deck renders, swipes both ways, and undoes", async ({ page }) => {
   await page.waitForTimeout(900);
   await expect(page.locator("h2").first()).toHaveText(firstTitle);
 
-  await page.getByRole("button", { name: "Claim it" }).click();
+  await page.getByRole("button", { name: "Claim it", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByRole("button", { name: /^Pay \$/ })).toBeVisible();
 
@@ -39,7 +39,7 @@ test("deck renders, swipes both ways, and undoes", async ({ page }) => {
 });
 
 test("claim, pay and land on the order timeline", async ({ page }) => {
-  await page.getByRole("button", { name: "Claim it" }).click();
+  await page.getByRole("button", { name: "Claim it", exact: true }).click();
   await page.getByRole("button", { name: /^Pay \$/ }).click();
   await page.waitForURL(/\/orders\//, { timeout: 30_000 });
   await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible({ timeout: 20_000 });

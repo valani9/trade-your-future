@@ -93,7 +93,7 @@ export const SwipeCard = forwardRef<
           <Pill tone="coral">{card.category}</Pill>
           <Pill>{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
         </div>
-        {card.isDemo ? <span className="text-[10px] tracking-wide text-ink/35">Demo listing</span> : null}
+        {card.isDemo ? <span className="text-[10px] tracking-wide text-ink/60">Demo listing</span> : null}
       </div>
 
       <motion.div

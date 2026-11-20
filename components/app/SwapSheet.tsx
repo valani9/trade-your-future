@@ -81,7 +81,7 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
           </p>
         ) : (
           plans.map((plan) => {
-            const diff = plan.faceValueCents - card!.priceCents;
+            const diff = plan.faceValueCents - (card?.priceCents ?? 0);
             return (
               <button
                 key={plan.id}
