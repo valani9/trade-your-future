@@ -75,16 +75,20 @@ export default function OrderPage() {
   const keys = useRef<Record<string, string>>({});
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/orders/${params.id}`, { cache: "no-store" });
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/orders/${params.id}`, { cache: "no-store" });
+      if (!res.ok) {
+        setFailed(true);
+        return;
+      }
+      setFailed(false);
+      const data = (await res.json()) as Order;
+      setOrder(data);
+      const receiptRes = await fetch(`/api/receipts/${params.id}`, { cache: "no-store" });
+      if (receiptRes.ok) setReceipt((await receiptRes.json()) as Receipt);
+    } catch {
       setFailed(true);
-      return;
     }
-    setFailed(false);
-    const data = (await res.json()) as Order;
-    setOrder(data);
-    const receiptRes = await fetch(`/api/receipts/${params.id}`, { cache: "no-store" });
-    if (receiptRes.ok) setReceipt((await receiptRes.json()) as Receipt);
   }, [params.id]);
 
   useEffect(() => {

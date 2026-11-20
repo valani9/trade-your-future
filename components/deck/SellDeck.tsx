@@ -82,11 +82,14 @@ export function SellDeck({
     }
     try {
       const res = await fetch(`/api/listings/${plan.id}/suggest`, { cache: "no-store" });
-      if (res.ok) {
-        const data = await res.json();
+      if (!res.ok) return;
+      const data = await res.json();
+      setSellPlan((open) => {
+        if (open?.id !== plan.id) return open;
         setSuggest(data);
         setPrice(data.suggestedPriceCents);
-      }
+        return open;
+      });
     } catch {
       setSuggest(null);
     }

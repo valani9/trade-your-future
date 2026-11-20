@@ -62,6 +62,13 @@ export async function handlePublic(
   }
 }
 
+/** Route handlers have no body cap of their own, so refuse a huge one before buffering it. */
+export function payloadTooLarge(request: Request, limit: number): Response | null {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > limit) return fail(413, "That request is too large", "payload_too_large");
+  return null;
+}
+
 export async function body<T>(request: Request, parse: (value: unknown) => T): Promise<T> {
   let raw: unknown;
   try {

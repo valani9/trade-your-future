@@ -1,10 +1,21 @@
 "use client";
 
 let current: HTMLAudioElement | null = null;
+let settle: (() => void) | null = null;
+let generation = 0;
+
+/** Resolves whoever is waiting on say(); called on end, error, and on any cut-off. */
+function finish() {
+  const done = settle;
+  settle = null;
+  done?.();
+}
 
 /** Plays text through the ElevenLabs route, falling back to the browser voice. */
 export async function say(text: string): Promise<void> {
+  const gen = ++generation;
   current?.pause();
+  finish();
   try {
     const res = await fetch("/api/voice/speak", {
       method: "POST",
@@ -12,13 +23,16 @@ export async function say(text: string): Promise<void> {
       body: JSON.stringify({ text }),
     });
     if (res.ok) {
-      const url = URL.createObjectURL(await res.blob());
+      const blob = await res.blob();
+      if (gen !== generation) return;
+      const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       current = audio;
       await new Promise<void>((resolve) => {
-        audio.onended = () => resolve();
-        audio.onerror = () => resolve();
-        audio.play().catch(() => resolve());
+        settle = resolve;
+        audio.onended = () => gen === generation && finish();
+        audio.onerror = () => gen === generation && finish();
+        audio.play().catch(() => gen === generation && finish());
       });
       URL.revokeObjectURL(url);
       return;
@@ -26,11 +40,13 @@ export async function say(text: string): Promise<void> {
   } catch {
     // fall through
   }
+  if (gen !== generation) return;
   if (typeof window !== "undefined" && "speechSynthesis" in window) {
     await new Promise<void>((resolve) => {
+      settle = resolve;
       const u = new SpeechSynthesisUtterance(text);
-      u.onend = () => resolve();
-      u.onerror = () => resolve();
+      u.onend = () => gen === generation && finish();
+      u.onerror = () => gen === generation && finish();
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     });
@@ -39,9 +55,11 @@ export async function say(text: string): Promise<void> {
 
 /** Cuts off whatever is speaking, so turning voice mode off is immediate. */
 export function stopSpeaking(): void {
+  generation++;
   current?.pause();
   current = null;
   if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+  finish();
 }
 
 /** Records ~2.5s from the mic and returns the parsed command. */

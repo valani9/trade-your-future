@@ -143,6 +143,9 @@ export async function oddsForMatchup(
     value = null;
   }
   cache.set(key, { at: Date.now(), value });
+  if (cache.size > 500) {
+    for (const [k, entry] of cache) if (Date.now() - entry.at >= CACHE_MS) cache.delete(k);
+  }
   return value;
 }
 

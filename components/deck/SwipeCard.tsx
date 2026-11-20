@@ -64,7 +64,7 @@ export const SwipeCard = forwardRef<
   useEffect(() => {
     if (depth !== 0) return;
     const onKey = (event: KeyboardEvent) => {
-      if (shortcutsBlocked(event)) return;
+      if (event.repeat || shortcutsBlocked(event)) return;
       if (event.key === "ArrowRight") void commit("right");
       if (event.key === "ArrowLeft") void commit("left");
     };

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { json, fail } from "@/lib/api/helpers";
+import { json, fail, payloadTooLarge } from "@/lib/api/helpers";
 import { appDb } from "@/lib/boot";
 import { extractMatches, recordMatches } from "@/lib/services/streams";
 
@@ -26,6 +26,8 @@ function authorised(request: Request, raw: string): boolean {
 }
 
 export async function POST(request: Request) {
+  const tooLarge = payloadTooLarge(request, 2_000_000);
+  if (tooLarge) return tooLarge;
   const raw = await request.text();
   if (!authorised(request, raw)) return fail(401, "Bad stream signature", "unauthorized");
   let payload: unknown;
