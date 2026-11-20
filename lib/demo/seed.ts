@@ -1,4 +1,4 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 import { listings, plans, users } from "@/lib/db/schema";
 import { solana } from "@/lib/solana";
@@ -297,6 +297,13 @@ export async function seedDemo(db: Db, now = new Date()) {
     });
   }
 
+  const demoWallet = await db.select({ pubkey: users.walletPubkey }).from(users).where(eq(users.id, demoUserId)).limit(1);
+  if (demoWallet[0]) {
+    const held = await solana().balance(demoWallet[0].pubkey);
+    const target = centsToBaseUnits(50_000);
+    if (held < target) await solana().airdropTokens(demoWallet[0].pubkey, target - held);
+  }
+
   const sellerIds: string[] = [];
   for (const name of sellers) {
     const email = `${name.toLowerCase().replace(/[^a-z]+/g, ".")}@sellers.tyf.app`;
@@ -379,7 +386,7 @@ export async function seedDemo(db: Db, now = new Date()) {
     });
   }
 
-  return { demoUserId, listingCount: listingRows.length };
+  return { demoUserId, sellerIds, listingCount: listingRows.length };
 }
 
 export async function ensureSeed(db: Db) {
@@ -390,6 +397,19 @@ export async function ensureSeed(db: Db) {
 }
 
 export async function resetDemo(db: Db) {
+  const live = await db.execute<{ id: string; buyer_id: string; amount_cents: number }>(
+    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over')`,
+  );
+  const rows = (live as unknown as { rows: Array<{ id: string; buyer_id: string; amount_cents: number }> }).rows ?? [];
+  for (const row of rows) {
+    const buyer = await db.select({ pubkey: users.walletPubkey }).from(users).where(eq(users.id, row.buyer_id)).limit(1);
+    if (!buyer[0]) continue;
+    try {
+      await solana().transferFromEscrow({ toPubkey: buyer[0].pubkey, baseUnits: centsToBaseUnits(row.amount_cents) });
+    } catch {
+      // nothing was escrowed for that order
+    }
+  }
   await db.execute(sql`truncate table events, idempotency_keys, swaps, orders, swipes, listings, plans restart identity cascade`);
   await db.execute(sql`delete from users where email <> ${DEMO_EMAIL}`);
   return seedDemo(db);

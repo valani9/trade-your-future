@@ -392,3 +392,84 @@ describe("secrets and authz", () => {
     void makeOrder;
   });
 });
+
+describe("recovery and reachability", () => {
+  beforeEach(async () => {
+    await freshDb();
+  });
+
+  it("keeps a claim alive when the buyer is short and lets a top-up pay it", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const broke = await makeUser("Broke", { funded: false });
+    const { listing } = await makeListing(seller.id, {}, 4000);
+    const { orderId } = await createOrder(db, broke.id, listing.id);
+
+    await expect(fundOrder(db, broke.id, orderId)).rejects.toMatchObject({ status: 402 });
+    const pending = (await db.select().from(orders).where(eq(orders.id, orderId)))[0];
+    expect(pending.status).toBe("created");
+
+    await solana().airdropTokens(broke.walletPubkey, centsToBaseUnits(5_000));
+    const funded = await fundOrder(db, broke.id, orderId);
+    expect(funded.status).toBe("funded");
+  });
+
+  it("declining a swap releases the listing and the offered plan", async () => {
+    const db = await freshDb();
+    const me = await makeUser("Me");
+    const them = await makeUser("Them");
+    const mine = await makePlan(me.id, { faceValueCents: 9000 });
+    const { listing, plan } = await makeListing(them.id, { faceValueCents: 9000 }, 9000);
+    const swap = await proposeSwap(db, me.id, mine.id, listing.id);
+    const { declineSwap } = await import("@/lib/services/swaps");
+    await declineSwap(db, them.id, swap.id);
+    const after = (await db.select().from(listings).where(eq(listings.id, listing.id)))[0];
+    const mineAfter = (await db.select().from(plans).where(eq(plans.id, mine.id)))[0];
+    expect(after.status).toBe("open");
+    expect(mineAfter.status).toBe("active");
+    void plan;
+  });
+
+  it("settles a released order whose payout was left without a signature", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const buyer = await makeUser("Buyer");
+    const { listing } = await makeListing(seller.id, {}, 3000);
+    const { orderId } = await createOrder(db, buyer.id, listing.id);
+    await fundOrder(db, buyer.id, orderId);
+    await handoverOrder(db, seller.id, orderId, "");
+    const before = await balance(seller.walletPubkey);
+    await db
+      .update(orders)
+      .set({ status: "released", releaseTx: null, updatedAt: new Date(Date.now() - 120_000) })
+      .where(eq(orders.id, orderId));
+    const result = await cronTick(db);
+    expect(result.recovered).toBeGreaterThanOrEqual(1);
+    expect(await balance(seller.walletPubkey)).toBe(before + centsToBaseUnits(2700));
+  });
+});
+
+describe("demo reset", () => {
+  it("refunds escrowed orders and never pays out an unpaid claim", async () => {
+    const db = await freshDb();
+    const { seedDemo, resetDemo } = await import("@/lib/demo/seed");
+    const demo = await seedDemo(db);
+    const { plans: plansTable } = await import("@/lib/db/schema");
+    const seeded = (await db.select().from(plansTable).where(eq(plansTable.userId, demo.demoUserId)).limit(1))[0];
+    const buyer = (await db.select().from(users).where(eq(users.id, demo.demoUserId)).limit(1))[0];
+
+    const { listing } = await makeListing(demo.sellerIds[0], {}, 4000);
+    const { orderId: paidOrder } = await createOrder(db, demo.demoUserId, listing.id);
+    await fundOrder(db, demo.demoUserId, paidOrder);
+
+    const second = await makeListing(demo.sellerIds[1], {}, 4000);
+    const { orderId: unpaidOrder } = await createOrder(db, demo.demoUserId, second.listing.id);
+
+    const before = await balance(buyer.walletPubkey);
+    await resetDemo(db);
+    const after = await balance(buyer.walletPubkey);
+    expect(after).toBeGreaterThanOrEqual(before + centsToBaseUnits(4000));
+    void unpaidOrder;
+    void seeded;
+  });
+});

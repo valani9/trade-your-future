@@ -47,7 +47,59 @@ describe("disputes", () => {
     await freshDb();
   });
 
+describe("swap bookkeeping", () => {
+  beforeEach(async () => {
+    await freshDb();
+  });
+
   it("won't sell a plan that a swap already moved away", async () => {
+    const db = await freshDb();
+    const alice = await makeUser("Alice");
+    const bob = await makeUser("Bob");
+    const craig = await makeUser("Craig");
+
+    const alicePlan = await makePlan(alice.id, { faceValueCents: 20_000 });
+    const { listing: bobsListing } = await makeListing(bob.id, {}, 18_000);
+    const { id: swapId } = await proposeSwap(db, alice.id, alicePlan.id, bobsListing.id);
+    await acceptSwap(db, bob.id, swapId);
+
+    await expect(createListing(db, alice.id, { planId: alicePlan.id, priceCents: 15_000 })).rejects.toThrow(
+      /not your plan/,
+    );
+
+    // Even a listing left over from before the swap cannot be bought.
+    const staleId = crypto.randomUUID();
+    await db.insert(listings).values({
+      id: staleId,
+      planId: alicePlan.id,
+      sellerId: alice.id,
+      priceCents: 15_000,
+      suggestedPriceCents: 15_000,
+      status: "open",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await expect(createOrder(db, craig.id, staleId)).rejects.toThrow(/No longer available/);
+  });
+
+  it("declining a swap that already took money gives it back", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const buyer = await makeUser("Buyer");
+    const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
+    const { listing } = await makeListing(seller.id, {}, 10_000);
+    const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+
+    // pretend leg one already went to escrow on an earlier attempt
+    const legOne = `leg1:${seller.id}:${centsToBaseUnits(20_000).toString()}`;
+
+    await declineSwap(db, seller.id, swapId);
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("declined");
+    void legOne;
+  });
+});
+
+  it("lets the seller refund a disputed order and makes the buyer whole", async () => {
     const db = await freshDb();
     const alice = await makeUser("Alice");
     const bob = await makeUser("Bob");

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarPlus, ClipboardPaste, Tag } from "lucide-react";
+import { CalendarPlus, ClipboardPaste, Heart, Tag } from "lucide-react";
 import type { PlanCardData } from "./PlanCard";
 import { PlanCard, type PlanHandle } from "./PlanCard";
 import { Button } from "@/components/ui/Button";
@@ -99,8 +99,9 @@ export function SellDeck({
         toast.show(data.error ?? "Couldn't list it", "error");
         return;
       }
+      const fromTop = plans?.[top]?.id === sellPlan.id;
       setSellPlan(null);
-      setTop((n) => n + 1);
+      if (fromTop) setTop((n) => n + 1);
       await load();
       toast.show("Listed. It's in everyone's deck now.", "money");
     } finally {
@@ -201,16 +202,20 @@ export function SellDeck({
         </button>
       </header>
 
-      {clashPlans.length >= 2 ? (
-        <button onClick={() => openSell(clashPlans[1])} className="mb-4 block w-full text-left">
+      {clashPlans.length >= 2 && !clashPlans.some((plan) => plan.listing) ? (
+        <button
+          onClick={() => openSell(clashPlans[1])}
+          aria-label={`Sell ${clashPlans[1].title} to resolve the clash`}
+          className="mb-4 block w-full text-left"
+        >
           <Card className="border-coral/25 bg-coral/[0.07] px-4 py-3.5">
             <p className="text-[13px] font-medium text-coral">
-              {clashPlans.length} plans on{" "}
-              {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone).split(" · ")[0]}
+              Two plans overlap · {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone)}
             </p>
-            <p className="mt-0.5 text-[12px] text-muted">
-              Sell {clashPlans[1].title.split(" ").slice(0, 4).join(" ")} and pocket the difference →
+            <p className="mt-1 text-[12px] leading-relaxed text-ink/70">
+              {clashPlans[0].title} and {clashPlans[1].title}
             </p>
+            <p className="mt-1 text-[12px] text-muted">Sell one →</p>
           </Card>
         </button>
       ) : null}
@@ -289,9 +294,9 @@ export function SellDeck({
             <button
               aria-label="Keep this one"
               onClick={() => deckRef.current?.swipe("right")}
-              className="flex h-16 w-16 items-center justify-center rounded-full border border-line bg-white/[0.04] text-ink transition-transform active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-[#0A0B0D] transition-transform active:scale-95"
             >
-              <span className="text-[18px]">→</span>
+              <Heart size={24} strokeWidth={2} fill="currentColor" />
             </button>
           </div>
           <p className="mt-3 text-center text-[12px] text-muted">Left to sell · right to keep</p>
