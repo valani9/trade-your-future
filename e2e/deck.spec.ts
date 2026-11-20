@@ -47,6 +47,7 @@ test("claim, pay and land on the order timeline", async ({ page }) => {
   await page.waitForURL(/\/orders\//, { timeout: 30_000 });
   await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
   await page.getByRole("button", { name: /got it/i }).click({ timeout: 30_000 });
+  await page.getByRole("button", { name: /yes, release/i }).click({ timeout: 20_000 });
   await expect(page.getByText("Complete", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Held safely until you confirm|Secured on Solana|Paid to/)).toBeVisible({ timeout: 30_000 });
 });

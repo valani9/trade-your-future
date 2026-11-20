@@ -268,7 +268,7 @@ export function SellDeck({
         </div>
       ) : (
         <>
-          <div className="relative mx-auto aspect-[3/4] w-full max-w-[400px]">
+          <div className="relative mx-auto aspect-[3/4] h-[min(calc(100dvh-380px),460px)] w-auto max-w-[400px]">
             {visible
               .map((plan, i) => (
                 <PlanCard

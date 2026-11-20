@@ -157,15 +157,19 @@ export function BuyDeck({
   }
 
   async function topUpAndPay() {
+    if (!claim) return;
     setToppingUp(true);
     try {
-      const res = await fetch("/api/wallet/fund", { method: "POST" });
-      if (!res.ok) {
-        toast.show("Couldn't add funds right now", "error");
-        return;
+      const needed = Math.max(1, Math.ceil(shortfall / 10_000));
+      for (let i = 0; i < needed; i++) {
+        const res = await fetch("/api/wallet/fund", { method: "POST" });
+        if (!res.ok) {
+          toast.show("Couldn't add funds right now", "error");
+          return;
+        }
       }
       setShort(false);
-      toast.show("Added $100", "money");
+      toast.show(`Added ${formatUsd(needed * 10_000)}`, "money");
       await pay();
     } finally {
       setToppingUp(false);
@@ -190,10 +194,10 @@ export function BuyDeck({
         return;
       }
       toast.show("Paid. Held until handover.", "money");
+      setClaim(null);
       router.push(`/orders/${claim.orderId}`);
     } finally {
       setPaying(false);
-      setClaim(null);
     }
   }
 
@@ -211,7 +215,7 @@ export function BuyDeck({
       </header>
 
       <div className="relative flex-1">
-        <div className="relative mx-auto aspect-[3/4] w-full max-w-[400px]">
+        <div className="relative mx-auto aspect-[3/4] h-[min(calc(100dvh-352px),480px)] w-auto max-w-[400px]">
           {loading ? (
             <CardSkeleton />
           ) : error ? (

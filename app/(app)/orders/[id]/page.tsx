@@ -63,6 +63,7 @@ export default function OrderPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -251,7 +252,7 @@ export default function OrderPage() {
 
       {order.status === "handed_over" && isBuyer ? (
         <div className="mt-4 space-y-2">
-          <Button full onClick={() => act("confirm")} loading={busy === "confirm"}>
+          <Button full onClick={() => setReleaseOpen(true)}>
             Got it — release the payment
           </Button>
           <p className="text-center text-[12px] text-muted">
@@ -452,6 +453,27 @@ export default function OrderPage() {
           </Button>
           <Button full variant="quiet" onClick={() => setDisputeOpen(false)}>
             Never mind
+          </Button>
+        </div>
+      </Sheet>
+
+      <Sheet open={releaseOpen} onClose={() => setReleaseOpen(false)} title="Release the payment?">
+        <p className="text-[14px] leading-relaxed text-muted">
+          {formatUsd(order.netCents)} goes to {order.sellerName?.split(" ")[0] ?? "the seller"} and the plan is yours. This can&apos;t be undone.
+        </p>
+        <div className="mt-5 space-y-2">
+          <Button
+            full
+            onClick={() => {
+              setReleaseOpen(false);
+              void act("confirm");
+            }}
+            loading={busy === "confirm"}
+          >
+            Yes, release it
+          </Button>
+          <Button full variant="quiet" onClick={() => setReleaseOpen(false)}>
+            Not yet
           </Button>
         </div>
       </Sheet>
