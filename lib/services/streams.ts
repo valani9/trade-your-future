@@ -10,6 +10,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 import { auditEvents, orders } from "@/lib/db/schema";
 import { id } from "@/lib/utils";
+import { config } from "@/lib/config";
 
 export type StreamMatch = { orderId: string; state: string; signature: string; slot: number | null; blockTime: number | null };
 
@@ -94,4 +95,33 @@ export async function chainConfirmations(db: Db, orderId: string) {
     const p = r.payload as { state: string; signature: string; slot: number | null };
     return { state: p.state, signature: p.signature, slot: p.slot, seenAt: r.createdAt.toISOString() };
   });
+}
+
+/**
+ * For deliveries that arrive without a valid signature, trust the chain instead of the
+ * sender: keep only matches whose transaction exists, was paid for by our escrow wallet,
+ * and logs the exact memo the delivery claims.
+ */
+export async function verifyOnChain(matches: StreamMatch[]): Promise<StreamMatch[]> {
+  if (config.solanaMock() || !config.escrowSecret()) return [];
+  const { Connection } = await import("@solana/web3.js");
+  const { keypairFromSecret } = await import("@/lib/solana");
+  const escrow = keypairFromSecret(config.escrowSecret()).publicKey.toBase58();
+  const connection = new Connection(config.rpcUrl(), "confirmed");
+  const kept: StreamMatch[] = [];
+  for (const match of matches.slice(0, 20)) {
+    try {
+      const tx = await connection.getTransaction(match.signature, { maxSupportedTransactionVersion: 0, commitment: "confirmed" });
+      if (!tx || tx.meta?.err) continue;
+      const payer = tx.transaction.message.staticAccountKeys[0]?.toBase58();
+      const logs = tx.meta?.logMessages ?? [];
+      const memo = `tyf:${match.orderId}:${match.state}`;
+      if (payer === escrow && logs.some((line) => line.includes(memo))) {
+        kept.push({ ...match, slot: tx.slot, blockTime: tx.blockTime ?? match.blockTime });
+      }
+    } catch {
+      // Unverifiable deliveries are dropped.
+    }
+  }
+  return kept;
 }

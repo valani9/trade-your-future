@@ -165,7 +165,7 @@ export class MockSolana implements SolanaService {
   }
 }
 
-function keypairFromSecret(secret: string): Keypair {
+export function keypairFromSecret(secret: string): Keypair {
   if (/^[0-9a-fA-F]{64}$/.test(secret)) return Keypair.fromSeed(Buffer.from(secret, "hex"));
   try {
     return Keypair.fromSecretKey(bs58.decode(secret));
