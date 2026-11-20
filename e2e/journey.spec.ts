@@ -8,7 +8,7 @@ async function signIn(page: import("@playwright/test").Page) {
     await page.getByRole("button", { name: /try the demo/i }).click();
   }
   await page.waitForURL(/\/buy/, { timeout: 45_000 });
-  await page.waitForSelector("text=Swipe right to claim", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Claim it", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
 }
 
 test("full journey: claim, pay, handover, complete, receipt", async ({ page }) => {

@@ -19,17 +19,14 @@ const sizes = [
 
 async function login(page: Page) {
   await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  if (/\/buy/.test(page.url())) return;
+  const skip = page.getByRole("button", { name: /^skip$/i });
+  if (await skip.isVisible().catch(() => false)) await skip.click();
   const demo = page.getByRole("button", { name: /try the demo/i });
-  if (await demo.count()) {
-    for (let i = 0; i < 2; i++) {
-      const skip = page.getByRole("button", { name: /^skip$/i });
-      if (await skip.count()) await skip.click();
-      const next = page.getByRole("button", { name: /^next$/i });
-      if (await next.count()) await next.click();
-    }
-    await demo.click();
-    await page.waitForURL(/\/buy/, { timeout: 30000 });
-  }
+  await demo.waitFor({ state: "visible", timeout: 20000 });
+  await demo.click();
+  await page.waitForURL(/\/buy/, { timeout: 45000 });
+  await page.getByRole("button", { name: "Claim it", exact: true }).waitFor({ state: "visible", timeout: 30000 });
 }
 
 async function main() {

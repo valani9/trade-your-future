@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
     await demo.click();
   }
   await page.waitForURL(/\/buy/, { timeout: 45_000 });
-  await page.waitForSelector("text=Swipe right to claim", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Claim it", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
 });
 
 test("deck renders, swipes both ways, and undoes", async ({ page }) => {
