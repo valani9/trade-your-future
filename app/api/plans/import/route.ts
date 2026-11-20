@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       source: "import",
       externalId: `import:${planId}`,
       faceValueCents: parsed.faceValueCents,
-      transferability: "transferable",
+      transferability: parsed.transferability,
       status: "active",
       imageUrl: imageFor(parsed.category),
     });
@@ -45,5 +45,5 @@ function imageFor(category: string) {
     experience: "rooftop-night",
     flight: "plane-window",
   };
-  return `/demo/${map[category] ?? "rooftop-night"}.jpg`;
+  return `/demo/${map[category] ?? "rooftop-night"}.webp`;
 }

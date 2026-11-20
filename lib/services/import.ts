@@ -1,5 +1,7 @@
 import { HttpError } from "@/lib/config";
 
+export type Transferability = "transferable" | "venue_approval" | "name_change" | "non_transferable";
+
 export type ParsedPlan = {
   title: string;
   venue: string;
@@ -9,6 +11,7 @@ export type ParsedPlan = {
   endsAt: Date;
   faceValueCents: number;
   timeZone: string;
+  transferability: Transferability;
 };
 
 const MONTHS: Record<string, number> = {
@@ -83,6 +86,20 @@ function categoryOf(text: string): ParsedPlan["category"] {
   return "experience";
 }
 
+function transferabilityOf(text: string, category: ParsedPlan["category"]): Transferability {
+  if (/\b(non[- ]?transferable|no transfers?|cannot be transferred|name[- ]locked|members? only|guest list only)\b/i.test(text)) {
+    return "non_transferable";
+  }
+  if (/\b(will call|photo id|id required|name on (the )?ticket|tickets? are named|name change)\b/i.test(text)) {
+    return "name_change";
+  }
+  if (/\b(venue approval|subject to approval|reissue at the box office)\b/i.test(text)) {
+    return "venue_approval";
+  }
+  if (category === "hotel" || category === "flight") return "name_change";
+  return "transferable";
+}
+
 function durationMinutes(category: ParsedPlan["category"]): number {
   switch (category) {
     case "restaurant":
@@ -145,5 +162,6 @@ export function parseConfirmation(text: string, now = new Date()): ParsedPlan {
     endsAt: new Date(startsAt.getTime() + durationMinutes(category) * 60_000),
     faceValueCents,
     timeZone,
+    transferability: transferabilityOf(clean, category),
   };
 }
