@@ -271,3 +271,33 @@ describe("calendar sync", () => {
     void makeListing;
   });
 });
+
+describe("transferability from a confirmation", () => {
+  const now = new Date("2026-11-18T15:00:00Z");
+
+  it("marks a name-locked ticket as non-transferable", () => {
+    const parsed = parseConfirmation(
+      "Your order for Maggie Rogers at Stubb's BBQ, Austin on Sat, Nov 21, 2026 at 7:30 PM. Non-transferable, photo ID required at the door.",
+      now,
+    );
+    expect(parsed.transferability).toBe("non_transferable");
+  });
+
+  it("marks a will-call ticket as needing a name change", () => {
+    const parsed = parseConfirmation(
+      "Tickets to Hamilton at the Paramount, Austin on Sat, Nov 21, 2026 at 7:30 PM. Will call only.",
+      now,
+    );
+    expect(parsed.transferability).toBe("name_change");
+  });
+
+  it("treats a hotel stay as a name change and a plain concert as transferable", () => {
+    expect(
+      parseConfirmation("Your stay at Hotel San Jose, Austin on Sat, Nov 21, 2026 at 3:00 PM", now).transferability,
+    ).toBe("name_change");
+    expect(
+      parseConfirmation("Your order for Maggie Rogers at Stubb's BBQ, Austin on Sat, Nov 21, 2026 at 7:30 PM", now)
+        .transferability,
+    ).toBe("transferable");
+  });
+});
