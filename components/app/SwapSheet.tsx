@@ -26,14 +26,22 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
   const toast = useToast();
   const [plans, setPlans] = useState<MyPlan[] | null>(null);
   const [sending, setSending] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!card) return;
     setPlans(null);
+    setFailed(false);
     fetch("/api/plans")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("plans");
+        return r.json();
+      })
       .then((data) => setPlans((data.items ?? []).filter((p: MyPlan) => p.status === "active" && p.transferability !== "non_transferable")))
-      .catch(() => setPlans([]));
+      .catch(() => {
+        setFailed(true);
+        setPlans([]);
+      });
   }, [card]);
 
   async function propose(plan: MyPlan) {
@@ -75,6 +83,10 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </>
+        ) : failed ? (
+          <p className="rounded-btn border border-line px-4 py-4 text-[13px] text-muted">
+            Couldn&apos;t load your plans. Close this and try again.
+          </p>
         ) : plans.length === 0 ? (
           <p className="rounded-btn border border-line px-4 py-4 text-[13px] text-muted">
             You need an active plan to trade. Add one from the Sell tab.

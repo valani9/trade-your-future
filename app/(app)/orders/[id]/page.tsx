@@ -64,6 +64,7 @@ export default function OrderPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
   const [note, setNote] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -313,7 +314,7 @@ export default function OrderPage() {
               </Button>
             ) : null}
             {isSeller ? (
-              <Button full variant="danger" size="md" onClick={() => act("cancel")} loading={busy === "cancel"}>
+              <Button full variant="danger" size="md" onClick={() => setRefundOpen(true)} loading={busy === "cancel"}>
                 Refund {formatUsd(order.amountCents)}
               </Button>
             ) : null}
@@ -416,6 +417,29 @@ export default function OrderPage() {
           </Link>
         </div>
       ) : null}
+
+      <Sheet open={refundOpen} onClose={() => setRefundOpen(false)} title="Refund it?">
+        <p className="text-[13px] leading-relaxed text-muted">
+          {formatUsd(order?.amountCents ?? 0)} goes straight back to {order?.buyerName?.split(" ")[0] ?? "the buyer"} and
+          the plan comes back to you. This can&apos;t be undone.
+        </p>
+        <div className="mt-4 space-y-2">
+          <Button
+            full
+            variant="danger"
+            onClick={() => {
+              setRefundOpen(false);
+              void act("cancel");
+            }}
+            loading={busy === "cancel"}
+          >
+            Refund in full
+          </Button>
+          <Button full variant="quiet" onClick={() => setRefundOpen(false)}>
+            Keep the order open
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet open={disputeOpen} onClose={() => setDisputeOpen(false)} title="Something wrong?">
         <p className="text-[13px] leading-relaxed text-muted">
