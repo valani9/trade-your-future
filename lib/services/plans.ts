@@ -152,11 +152,13 @@ export async function createListing(
     throw new HttpError(422, "Can't be resold", "not_transferable");
   }
   if (plan.status === "sold" || plan.status === "swapped") throw new HttpError(422, "Already gone", "unavailable");
+  if (plan.status === "listed") throw new HttpError(409, "Already on sale", "already_listed");
+  if (plan.status !== "active") throw new HttpError(422, "This one has passed", "expired");
 
   const existing = await db
     .select({ id: listings.id })
     .from(listings)
-    .where(and(eq(listings.planId, plan.id), eq(listings.status, "open")))
+    .where(and(eq(listings.planId, plan.id), inArray(listings.status, ["open", "pending"])))
     .limit(1);
   if (existing[0]) throw new HttpError(409, "Already on sale", "already_listed");
 
@@ -184,10 +186,13 @@ export async function cancelListing(db: Db, userId: string, listingId: string) {
   if (!listing) throw new HttpError(404, "Listing not found", "not_found");
   if (listing.sellerId !== userId) throw new HttpError(403, "That's not your listing", "forbidden");
   if (listing.status === "sold") throw new HttpError(409, "Already sold", "conflict");
+  if (listing.status === "pending") {
+    throw new HttpError(409, "Someone is paying for this right now", "in_progress");
+  }
   const updated = await db
     .update(listings)
     .set({ status: "cancelled" })
-    .where(and(eq(listings.id, listingId), inArray(listings.status, ["open", "pending"])))
+    .where(and(eq(listings.id, listingId), eq(listings.status, "open")))
     .returning({ id: listings.id });
   if (!updated[0]) throw new HttpError(409, "Nothing to cancel", "conflict");
   await db.update(plans).set({ status: "active" }).where(and(eq(plans.id, listing.planId), eq(plans.status, "listed")));

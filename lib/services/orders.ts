@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/lib/db";
 import { auditEvents, listings, orders, plans, users } from "@/lib/db/schema";
 import { HttpError } from "@/lib/config";
@@ -13,7 +13,7 @@ export const ORDER_LEGAL: Record<string, OrderStatus[]> = {
   fund: ["created"],
   handover: ["funded"],
   confirm: ["handed_over"],
-  cancel: ["funded", "handed_over"],
+  cancel: ["funded", "handed_over", "disputed"],
   dispute: ["funded", "handed_over"],
 };
 
@@ -25,18 +25,14 @@ async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  chains.set(
-    key,
-    previous.then(() => gate),
-  );
+  const next = previous.then(() => gate);
+  chains.set(key, next);
   await previous;
   try {
     return await fn();
   } finally {
     release();
-    if (chains.size > 500) {
-      for (const [k, v] of chains) if (v === gate) chains.delete(k);
-    }
+    if (chains.get(key) === next) chains.delete(key);
   }
 }
 
@@ -184,6 +180,12 @@ export async function fundOrder(db: Db, userId: string, orderId: string) {
         type: "order.fund_orphaned",
         payload: { signature, reason: "status moved before the cas" },
       });
+      try {
+        const back = await payOut(wallet.pubkey, centsToBaseUnits(order.amountCents));
+        await logEvent(db, { orderId, actorId: userId, type: "order.fund_returned", payload: { signature: back } });
+      } catch {
+        await logEvent(db, { orderId, actorId: userId, type: "order.fund_return_failed" });
+      }
       throw new HttpError(409, "Already paid", "illegal_transition");
     }
     await logEvent(db, { orderId, actorId: userId, type: "order.funded", payload: { amountCents: order.amountCents } });
@@ -216,7 +218,7 @@ export async function handoverOrder(
   });
 }
 
-async function payOut(db: Db, orderId: string, actorId: string, toPubkey: string, baseUnits: bigint) {
+async function payOut(toPubkey: string, baseUnits: bigint) {
   return solana().transferFromEscrow({ toPubkey, baseUnits });
 }
 
@@ -225,29 +227,40 @@ async function settleRelease(db: Db, orderId: string, actorId: string) {
   if (order.status !== "handed_over") {
     throw new HttpError(409, "Nothing left to release", "illegal_transition");
   }
-  const seller = await getWalletSecret(order.sellerId);
-  const signature = await payOut(db, orderId, actorId, seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)));
-  const claimed = await transition(db, orderId, ["handed_over"], { status: "released", releaseTx: signature });
-  if (!claimed) {
-    await logEvent(db, {
-      orderId,
-      actorId,
-      type: "order.release_orphaned",
-      payload: { signature, reason: "status moved before the cas" },
-    });
-    throw new HttpError(409, "Already complete", "illegal_transition");
+
+  const claimed = await transition(db, orderId, ["handed_over"], { status: "released" });
+  if (!claimed) throw new HttpError(409, "Already complete", "illegal_transition");
+
+  let signature: string;
+  try {
+    await logEvent(db, { orderId, actorId, type: "order.release_sending" });
+    const seller = await getWalletSecret(order.sellerId);
+    signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)));
+    await db.update(orders).set({ releaseTx: signature }).where(eq(orders.id, orderId));
+  } catch (error) {
+    await db
+      .update(orders)
+      .set({ status: "handed_over" })
+      .where(and(eq(orders.id, orderId), eq(orders.status, "released"), isNull(orders.releaseTx)));
+    await logEvent(db, { orderId, actorId, type: "order.release_failed", payload: { error: String(error) } });
+    throw new HttpError(502, "Couldn't complete the payout. Try again.", "payout_failed");
   }
-  await db.update(listings).set({ status: "sold" }).where(eq(listings.id, order.listingId));
+
+  await finishSale(db, orderId, order.listingId, order.buyerId);
+  return signature;
+}
+
+async function finishSale(db: Db, orderId: string, listingId: string, buyerId: string) {
+  const { plan } = await loadOrder(db, orderId);
+  await db.update(listings).set({ status: "sold" }).where(eq(listings.id, listingId));
   await db
     .update(plans)
-    .set({ status: "sold", userId: order.buyerId })
-    .where(and(eq(plans.id, (await loadOrder(db, orderId)).plan.id), eq(plans.status, "listed")));
-  await logEvent(db, {
-    orderId,
-    actorId,
-    type: "order.released",
-    payload: { netCents: sellerNetCents(order.amountCents) },
-  });
+    .set({ status: "sold", userId: buyerId })
+    .where(and(eq(plans.id, plan.id), eq(plans.status, "listed")));
+}
+
+async function finishRelease(db: Db, orderId: string, actorId: string, netCents: number) {
+  await logEvent(db, { orderId, actorId, type: "order.released", payload: { netCents } });
   await recordMemo(db, orderId, actorId, "released");
 }
 
@@ -263,29 +276,33 @@ export async function confirmOrder(db: Db, userId: string, orderId: string) {
       await logEvent(db, { orderId, actorId: userId, type: "order.payout_failed", payload: { error: String(error) } });
       throw new HttpError(502, "Couldn't complete the payout. Try again.", "payout_failed");
     }
+    await finishRelease(db, orderId, userId, sellerNetCents(order.amountCents));
     return serializeOrder(await loadOrder(db, orderId));
   });
 }
 
-export async function refundOrder(db: Db, orderId: string, actorId: string) {
+export async function refundOrder(db: Db, orderId: string, actorId: string, reason = "cancelled") {
   const { order } = await loadOrder(db, orderId);
-  if (!["funded", "handed_over"].includes(order.status)) {
+  const refundable: OrderStatus[] = ["funded", "handed_over", "disputed"];
+  if (!refundable.includes(order.status)) {
     throw new HttpError(409, "Nothing left to refund", "illegal_transition");
   }
-  const buyer = await getWalletSecret(order.buyerId);
-  const signature = await payOut(db, orderId, actorId, buyer.pubkey, centsToBaseUnits(order.amountCents));
-  const claimed = await transition(db, orderId, ["funded", "handed_over"], {
-    status: "refunded",
-    refundTx: signature,
-  });
-  if (!claimed) {
-    await logEvent(db, {
-      orderId,
-      actorId,
-      type: "order.refund_orphaned",
-      payload: { signature, reason: "status moved before the cas" },
-    });
-    throw new HttpError(409, "Can't refund this one", "illegal_transition");
+  const claimed = await transition(db, orderId, refundable, { status: "refunded" });
+  if (!claimed) throw new HttpError(409, "Can't refund this one", "illegal_transition");
+
+  let signature: string;
+  try {
+    await logEvent(db, { orderId, actorId, type: "order.refund_sending" });
+    const buyer = await getWalletSecret(order.buyerId);
+    signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents));
+    await db.update(orders).set({ refundTx: signature }).where(eq(orders.id, orderId));
+  } catch (error) {
+    await db
+      .update(orders)
+      .set({ status: order.status })
+      .where(and(eq(orders.id, orderId), eq(orders.status, "refunded"), isNull(orders.refundTx)));
+    await logEvent(db, { orderId, actorId, type: "order.refund_failed", payload: { error: String(error) } });
+    throw new HttpError(502, "Couldn't refund. Try again.", "refund_failed");
   }
   await db.update(listings).set({ status: "cancelled" }).where(eq(listings.id, order.listingId));
   const { plan } = await loadOrder(db, orderId);
@@ -293,8 +310,33 @@ export async function refundOrder(db: Db, orderId: string, actorId: string) {
     .update(plans)
     .set({ status: "active" })
     .where(and(eq(plans.id, plan.id), inArray(plans.status, ["listed", "sold"])));
-  await logEvent(db, { orderId, actorId, type: "order.refunded", payload: { amountCents: order.amountCents } });
+  await logEvent(db, { orderId, actorId, type: "order.refunded", payload: { amountCents: order.amountCents, reason } });
   await recordMemo(db, orderId, actorId, "refunded");
+}
+
+export async function undoClaim(db: Db, userId: string, orderId: string) {
+  return withLock(orderId, async () => {
+    const { order } = await loadOrder(db, orderId);
+    if (order.buyerId !== userId) throw new HttpError(403, "That's not your order", "forbidden");
+    if (order.status === "created") {
+      const moved = await transition(db, orderId, ["created"], { status: "failed" });
+      if (!moved) throw new HttpError(409, "Already handled", "illegal_transition");
+      await db.update(listings).set({ status: "open" }).where(and(eq(listings.id, order.listingId), eq(listings.status, "pending")));
+      await logEvent(db, { orderId, actorId: userId, type: "order.undone" });
+      return;
+    }
+    if (order.status === "funded") {
+      await refundOrder(db, orderId, userId, "undone");
+      await db.update(listings).set({ status: "open" }).where(eq(listings.id, order.listingId));
+      const { plan } = await loadOrder(db, orderId);
+      await db
+        .update(plans)
+        .set({ status: "listed" })
+        .where(and(eq(plans.id, plan.id), eq(plans.status, "active")));
+      return;
+    }
+    throw new HttpError(409, "Too late to undo", "illegal_transition");
+  });
 }
 
 export async function cancelOrder(db: Db, userId: string, orderId: string) {
@@ -322,6 +364,19 @@ export async function disputeOrder(db: Db, userId: string, orderId: string) {
     if (!updated) throw new HttpError(409, "Can't dispute this one", "illegal_transition");
     await logEvent(db, { orderId, actorId: userId, type: "order.disputed" });
     await recordMemo(db, orderId, userId, "disputed");
+    return serializeOrder(await loadOrder(db, orderId));
+  });
+}
+
+export async function withdrawDispute(db: Db, userId: string, orderId: string) {
+  return withLock(orderId, async () => {
+    const { order } = await loadOrder(db, orderId);
+    if (order.buyerId !== userId) throw new HttpError(403, "Buyers only", "forbidden");
+    const back: OrderStatus = order.releaseDueAt ? "handed_over" : "funded";
+    const updated = await transition(db, orderId, ["disputed"], { status: back });
+    if (!updated) throw new HttpError(409, "This one isn't in review", "illegal_transition");
+    await logEvent(db, { orderId, actorId: userId, type: "order.dispute_withdrawn", payload: { back } });
+    await recordMemo(db, orderId, userId, back);
     return serializeOrder(await loadOrder(db, orderId));
   });
 }
@@ -417,8 +472,84 @@ export async function cronTick(db: Db, now = new Date()) {
   let released = 0;
   for (const row of dueRelease) {
     try {
-      await withLock(row.id, () => settleRelease(db, row.id, "system"));
+      await withLock(row.id, async () => {
+        await settleRelease(db, row.id, "system");
+        const { order } = await loadOrder(db, row.id);
+        await finishRelease(db, row.id, "system", sellerNetCents(order.amountCents));
+      });
       released++;
+    } catch {
+      // left for the next tick
+    }
+  }
+
+  const interrupted = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.status, "released"),
+        isNull(orders.releaseTx),
+        sql`${orders.updatedAt} <= ${new Date(now.getTime() - 60_000)}`,
+      ),
+    );
+  let recovered = 0;
+  for (const row of interrupted) {
+    const attempt = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(auditEvents)
+      .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_sending")));
+    if ((attempt[0]?.n ?? 0) > 0) {
+      const flagged = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(auditEvents)
+        .where(and(eq(auditEvents.orderId, row.id), eq(auditEvents.type, "order.release_unverified")));
+      if (!flagged[0]?.n) {
+        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.release_unverified" });
+      }
+      continue;
+    }
+    try {
+      await withLock(row.id, async () => {
+        const { order } = await loadOrder(db, row.id);
+        const seller = await getWalletSecret(order.sellerId);
+        await logEvent(db, { orderId: row.id, actorId: "system", type: "order.release_sending" });
+        const signature = await payOut(seller.pubkey, centsToBaseUnits(sellerNetCents(order.amountCents)));
+        await db.update(orders).set({ releaseTx: signature }).where(eq(orders.id, row.id));
+        await finishSale(db, order.id, order.listingId, order.buyerId);
+        await finishRelease(db, row.id, "system", sellerNetCents(order.amountCents));
+        recovered++;
+      });
+    } catch {
+      // left for the next tick
+    }
+  }
+
+  const staleDisputes = await db
+    .select({ id: orders.id, releaseDueAt: orders.releaseDueAt })
+    .from(orders)
+    .where(and(eq(orders.status, "disputed"), sql`${orders.updatedAt} <= ${new Date(now.getTime() - 7 * 86_400_000)}`));
+  let resolvedDisputes = 0;
+  for (const row of staleDisputes) {
+    try {
+      await withLock(row.id, async () => {
+        if (row.releaseDueAt) {
+          const restored = await transition(db, row.id, ["disputed"], { status: "handed_over" });
+          if (!restored) return;
+          await settleRelease(db, row.id, "system");
+          const { order } = await loadOrder(db, row.id);
+          await finishRelease(db, row.id, "system", sellerNetCents(order.amountCents));
+        } else {
+          await refundOrder(db, row.id, "system", "dispute_unanswered");
+        }
+        await logEvent(db, {
+          orderId: row.id,
+          actorId: "system",
+          type: "order.dispute_resolved",
+          payload: { sided: row.releaseDueAt ? "seller" : "buyer" },
+        });
+        resolvedDisputes++;
+      });
     } catch {
       // left for the next tick
     }
@@ -459,5 +590,5 @@ export async function cronTick(db: Db, now = new Date()) {
       // left for the next tick
     }
   }
-  return { released, refunded, abandoned: abandonedCount };
+  return { released, recovered, refunded, abandoned: abandonedCount, resolvedDisputes };
 }

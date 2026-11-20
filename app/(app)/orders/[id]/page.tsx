@@ -62,6 +62,7 @@ export default function OrderPage() {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [handoverOpen, setHandoverOpen] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
   const [note, setNote] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
 
@@ -89,7 +90,7 @@ export default function OrderPage() {
     return () => clearInterval(timer);
   }, [order, load]);
 
-  async function act(action: "fund" | "confirm" | "cancel" | "dispute", body?: object) {
+  async function act(action: "fund" | "confirm" | "cancel" | "dispute" | "withdraw-dispute", body?: object) {
     setBusy(action);
     try {
       const res = await fetch(`/api/orders/${params.id}/${action}`, {
@@ -104,7 +105,15 @@ export default function OrderPage() {
       }
       await load();
       toast.show(
-        action === "confirm" ? "Done. Nice one." : action === "fund" ? "Paid. Held until handover." : "Updated",
+        action === "confirm"
+          ? "Done. Nice one."
+          : action === "fund"
+            ? "Paid. Held until handover."
+            : action === "withdraw-dispute"
+              ? "Back on track"
+              : action === "cancel"
+                ? "Refunded in full"
+                : "Updated",
         action === "fund" ? "money" : "neutral",
       );
     } catch {
@@ -225,6 +234,38 @@ export default function OrderPage() {
         </div>
       ) : null}
 
+      {isBuyer && (order.status === "funded" || order.status === "handed_over") ? (
+        <div className="mt-2">
+          <Button full variant="quiet" size="md" onClick={() => setDisputeOpen(true)}>
+            Something&apos;s wrong with this one
+          </Button>
+        </div>
+      ) : null}
+
+      {order.status === "disputed" ? (
+        <Card className="mt-4 px-4 py-4">
+          <p className="text-[14px] font-medium">In review</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+            {isSeller
+              ? "The buyer says something went wrong. Refund them and the money goes straight back."
+              : "The money is still held. If it turns out fine, put the order back on track and finish it."}
+          </p>
+          <div className="mt-3 space-y-2">
+            {isBuyer ? (
+              <Button full variant="ghost" size="md" onClick={() => act("withdraw-dispute")} loading={busy === "withdraw-dispute"}>
+                Never mind, finish the order
+              </Button>
+            ) : null}
+            {isSeller ? (
+              <Button full variant="danger" size="md" onClick={() => act("cancel")} loading={busy === "cancel"}>
+                Refund {formatUsd(order.amountCents)}
+              </Button>
+            ) : null}
+            <p className="text-center text-[11px] text-faint">If nobody acts, we settle it automatically in seven days.</p>
+          </div>
+        </Card>
+      ) : null}
+
       {isSeller && order.status === "created" ? (
         <p className="mt-4 text-center text-[12px] text-faint">Waiting on the buyer to pay.</p>
       ) : null}
@@ -309,6 +350,21 @@ export default function OrderPage() {
           </Link>
         </div>
       ) : null}
+
+      <Sheet open={disputeOpen} onClose={() => setDisputeOpen(false)} title="Something wrong?">
+        <p className="text-[13px] leading-relaxed text-muted">
+          We&apos;ll hold the money where it is and the seller can refund you in one tap. Nothing is released while an
+          order is in review.
+        </p>
+        <div className="mt-4 space-y-2">
+          <Button full variant="danger" onClick={() => act("dispute")} loading={busy === "dispute"}>
+            Put it in review
+          </Button>
+          <Button full variant="quiet" onClick={() => setDisputeOpen(false)}>
+            Never mind
+          </Button>
+        </div>
+      </Sheet>
 
       <Sheet open={handoverOpen} onClose={() => setHandoverOpen(false)} title="Hand it over">
         <p className="text-[13px] leading-relaxed text-muted">

@@ -7,6 +7,7 @@ import {
   cronTick,
   disputeOrder,
   fundOrder,
+  withdrawDispute,
   handoverOrder,
   listOrders,
 } from "@/lib/services/orders";
@@ -123,8 +124,9 @@ describe("money path", () => {
       fund: ["created"],
       handover: ["funded"],
       confirm: ["handed_over"],
-      cancel: ["funded", "handed_over"],
+      cancel: ["funded", "handed_over", "disputed"],
       dispute: ["funded", "handed_over"],
+      withdraw: ["disputed"],
     };
     const actions = {
       fund: (orderId: string) => fundOrder(db, buyer.id, orderId),
@@ -132,6 +134,7 @@ describe("money path", () => {
       confirm: (orderId: string) => confirmOrder(db, buyer.id, orderId),
       cancel: (orderId: string) => cancelOrder(db, seller.id, orderId),
       dispute: (orderId: string) => disputeOrder(db, buyer.id, orderId),
+      withdraw: (orderId: string) => withdrawDispute(db, buyer.id, orderId),
     };
 
     for (const status of statuses) {

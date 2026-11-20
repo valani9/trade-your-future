@@ -8,6 +8,13 @@
       "when": 1795163795680,
       "tag": "0000_wakeful_madripoor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795170000000,
+      "tag": "0001_one_live_listing_per_plan",
+      "breakpoints": true
     }
   ]
 }

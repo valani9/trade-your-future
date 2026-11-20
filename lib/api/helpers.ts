@@ -72,6 +72,10 @@ export async function body<T>(request: Request, parse: (value: unknown) => T): P
   return parse(raw);
 }
 
+type StoredKey = { __fingerprint?: string; __pending?: true; response?: unknown };
+
+const CLAIM_TTL_MS = 120_000;
+
 export async function withIdempotency(
   ctx: AuthedCtx,
   scope: string,
@@ -81,33 +85,62 @@ export async function withIdempotency(
   if (!key) throw new HttpError(400, "Idempotency-Key header is required", "missing_idempotency_key");
   if (key.length < 8 || key.length > 128) throw new HttpError(400, "Invalid Idempotency-Key", "invalid_input");
   const fingerprint = await requestFingerprint(ctx.request);
-  const existing = await ctx.db
-    .select()
-    .from(idempotencyKeys)
-    .where(and(eq(idempotencyKeys.userId, ctx.userId), eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key)))
-    .limit(1);
-  if (existing[0]) {
-    const stored = existing[0].body as { __fingerprint?: string; response?: unknown };
-    if (stored.__fingerprint && stored.__fingerprint !== fingerprint) {
-      throw new HttpError(422, "That key was already used for a different request", "idempotency_mismatch");
+  const match = and(eq(idempotencyKeys.userId, ctx.userId), eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key));
+
+  const release = async (rowId: string) => {
+    await ctx.db.delete(idempotencyKeys).where(eq(idempotencyKeys.id, rowId));
+  };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rows = await ctx.db.select().from(idempotencyKeys).where(match).limit(1);
+    const existing = rows[0];
+    if (existing) {
+      const stored = existing.body as StoredKey;
+      if (stored.__pending) {
+        if (Date.now() - existing.createdAt.getTime() < CLAIM_TTL_MS) {
+          throw new HttpError(409, "That request is still going through", "in_progress");
+        }
+        await release(existing.id);
+      } else {
+        if (stored.__fingerprint && stored.__fingerprint !== fingerprint) {
+          throw new HttpError(422, "That key was already used for a different request", "idempotency_mismatch");
+        }
+        return json(stored.response ?? existing.body, existing.statusCode);
+      }
     }
-    return json(stored.response ?? existing[0].body, existing[0].statusCode);
-  }
-  const result = await fn();
-  if (result.status < 500) {
-    await ctx.db
+
+    const claimed = await ctx.db
       .insert(idempotencyKeys)
       .values({
         id: id(),
         userId: ctx.userId,
         scope,
         key,
-        statusCode: result.status,
-        body: { __fingerprint: fingerprint, response: result.body } as object,
+        statusCode: 0,
+        body: { __fingerprint: fingerprint, __pending: true } as object,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: idempotencyKeys.id });
+    const claim = claimed[0];
+    if (!claim) continue;
+
+    try {
+      const result = await fn();
+      if (result.status >= 500) {
+        await release(claim.id);
+        return respond(result);
+      }
+      await ctx.db
+        .update(idempotencyKeys)
+        .set({ statusCode: result.status, body: { __fingerprint: fingerprint, response: result.body } as object })
+        .where(eq(idempotencyKeys.id, claim.id));
+      return respond(result);
+    } catch (error) {
+      await release(claim.id);
+      throw error;
+    }
   }
-  return respond(result);
+  throw new HttpError(409, "That request is still going through", "in_progress");
 }
 
 function respond(result: { status: number; body: unknown }) {

@@ -18,6 +18,7 @@ export async function proposeSwap(db: Db, proposerId: string, offerPlanId: strin
   if (offer.userId !== proposerId) throw new HttpError(403, "That's not your plan", "forbidden");
   if (offer.status !== "active") throw new HttpError(409, "That plan is already busy", "unavailable");
   if (offer.transferability === "non_transferable") throw new HttpError(422, "Can't trade this one", "not_transferable");
+  if (offer.startsAt.getTime() <= Date.now()) throw new HttpError(422, "That plan already started", "expired");
 
   const listingRows = await db
     .select({ listing: listings, plan: plans })
@@ -30,6 +31,9 @@ export async function proposeSwap(db: Db, proposerId: string, offerPlanId: strin
   if (want.listing.status !== "open") throw new HttpError(409, "No longer available", "unavailable");
   if (want.listing.sellerId === proposerId) throw new HttpError(400, "That's your own plan", "self_swap");
   if (want.plan.status !== "listed") throw new HttpError(409, "No longer available", "unavailable");
+  if (want.listing.expiresAt.getTime() <= Date.now() || want.plan.startsAt.getTime() <= Date.now()) {
+    throw new HttpError(422, "That one has already started", "expired");
+  }
 
   const existing = await db
     .select({ id: swaps.id })
@@ -76,8 +80,14 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
   const want = listingRows[0];
   const offerRows = await db.select().from(plans).where(eq(plans.id, swap.offerPlanId)).limit(1);
   const offer = offerRows[0];
-  if (!want || want.listing.status !== "open" || !offer || offer.status !== "active") {
-    await db.update(swaps).set({ status: "cancelled" }).where(eq(swaps.id, swapId));
+  if (
+    !want ||
+    want.listing.status !== "open" ||
+    !offer ||
+    offer.status !== "active" ||
+    offer.startsAt.getTime() <= Date.now()
+  ) {
+    await abandonSwap(db, swap);
     throw new HttpError(409, "That trade fell through", "stale_swap");
   }
 
@@ -141,6 +151,12 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
       });
     } catch (error) {
       await db.update(swaps).set({ status: "proposed" }).where(eq(swaps.id, swapId));
+      await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
+      await db
+        .update(plans)
+        .set({ status: "active" })
+        .where(and(eq(plans.id, offerRows[0].id), eq(plans.status, "listed")));
+      await log(db, swapId, userId, "swap.settlement_failed", { error: String(error) });
       throw new HttpError(502, "The payment didn't go through", "settlement_failed");
     }
   }
@@ -160,6 +176,29 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
   await db.update(swaps).set({ status: "settled", settleTx }).where(eq(swaps.id, swapId));
   await log(db, swapId, userId, "swap.settled", { diffCents: swap.diffCents });
   return { id: swapId, status: "settled", diffCents: swap.diffCents, settleTx };
+}
+
+async function abandonSwap(db: Db, swap: typeof swaps.$inferSelect) {
+  const pending = swap.settleTx;
+  await db.update(swaps).set({ status: "cancelled", settleTx: null }).where(eq(swaps.id, swap.id));
+  if (pending?.startsWith("leg1:")) {
+    const [, payerId, baseUnits] = pending.split(":");
+    try {
+      const payer = await getWalletSecret(payerId);
+      const back = await solana().transferFromEscrow({ toPubkey: payer.pubkey, baseUnits: BigInt(baseUnits) });
+      await log(db, swap.id, "system", "swap.leg_returned", { signature: back });
+    } catch (error) {
+      await log(db, swap.id, "system", "swap.leg_return_failed", { error: String(error) });
+    }
+  }
+  const listing = (await db.select().from(listings).where(eq(listings.id, swap.wantListingId)).limit(1))[0];
+  if (listing) {
+    await db.update(listings).set({ status: "open" }).where(and(eq(listings.id, listing.id), eq(listings.status, "pending")));
+  }
+  const offer = (await db.select().from(plans).where(eq(plans.id, swap.offerPlanId)).limit(1))[0];
+  if (offer) {
+    await db.update(plans).set({ status: "active" }).where(and(eq(plans.id, offer.id), eq(plans.status, "listed")));
+  }
 }
 
 export async function declineSwap(db: Db, userId: string, swapId: string) {

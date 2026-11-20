@@ -2,9 +2,16 @@ import crypto from "node:crypto";
 
 const FALLBACK_KEY = "0".repeat(64);
 
+function localOnly(): boolean {
+  return (process.env.SOLANA_MOCK ?? "true") !== "false" && (process.env.DEMO_MODE ?? "true") !== "false";
+}
+
 function key(): Buffer {
   const hex = process.env.WALLET_ENC_KEY;
   if (hex && /^[0-9a-fA-F]{64}$/.test(hex)) return Buffer.from(hex, "hex");
+  if (!localOnly()) {
+    throw new Error("WALLET_ENC_KEY must be 64 hex characters to store wallet keys outside demo mode");
+  }
   return Buffer.from(FALLBACK_KEY, "hex");
 }
 

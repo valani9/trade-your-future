@@ -115,7 +115,7 @@ export const listings = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   },
   (t) => [
-    uniqueIndex("listings_one_open_per_plan").on(t.planId).where(sql`status = 'open'`),
+    uniqueIndex("listings_one_live_per_plan").on(t.planId).where(sql`status in ('open', 'pending')`),
     index("listings_feed_idx").on(t.status, t.expiresAt, t.createdAt),
     check("listings_price_range", sql`${t.priceCents} > 0 AND ${t.priceCents} <= 1000000`),
   ],

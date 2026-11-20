@@ -2,6 +2,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { handle, json } from "@/lib/api/helpers";
 import { listings, orders, swipes } from "@/lib/db/schema";
 import { HttpError } from "@/lib/config";
+import { undoClaim } from "@/lib/services/orders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,9 +27,8 @@ export async function POST(request: Request) {
       .where(and(eq(orders.buyerId, userId), eq(orders.listingId, last.listingId)))
       .limit(1);
     const order = openOrders[0];
-    if (order && order.status === "created") {
-      await db.delete(orders).where(eq(orders.id, order.id));
-      await db.update(listings).set({ status: "open" }).where(eq(listings.id, order.listingId));
+    if (order && (order.status === "created" || order.status === "funded")) {
+      await undoClaim(db, userId, order.id);
     }
     return json({ undone: true, listingId: last.listingId, direction: last.direction });
   });

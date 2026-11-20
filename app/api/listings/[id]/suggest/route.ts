@@ -10,10 +10,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  return handle(request, async ({ db }) => {
+  return handle(request, async ({ db, userId }) => {
     const rows = await db.select().from(plans).where(eq(plans.id, id)).limit(1);
     const plan = rows[0];
     if (!plan) throw new HttpError(404, "Plan not found", "not_found");
+    if (plan.userId !== userId) throw new HttpError(403, "That's not your plan", "forbidden");
     const suggested = suggestPriceCents(plan);
     return json({
       suggestedPriceCents: suggested,
