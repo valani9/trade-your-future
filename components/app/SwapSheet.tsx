@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
-import { formatUsd } from "@/lib/money";
+import { feeCents, formatUsd } from "@/lib/money";
 import { formatEventDate } from "@/lib/utils";
+
+const netOf = (cents: number) => cents - feeCents(cents);
 
 type MyPlan = {
   id: string;
@@ -63,8 +65,8 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
         diff === 0
           ? "Even trade. Offer sent."
           : diff > 0
-            ? `Offer sent. They'd owe you ${formatUsd(diff)}.`
-            : `Offer sent. You'd owe ${formatUsd(-diff)}.`,
+            ? `Offer sent. You'd get ${formatUsd(netOf(diff))} when they accept.`
+            : `Offer sent. You'd owe ${formatUsd(-diff)} when they accept.`,
       );
       onClose();
     } finally {
@@ -75,7 +77,7 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
   return (
     <Sheet open={Boolean(card)} onClose={onClose} title="Swap instead">
       <p className="text-[13px] leading-relaxed text-muted">
-        Trade one of your plans for this one. Whoever&apos;s side is worth more pays the difference.
+        Trade one of your plans for this one. The side worth less pays the difference, and you keep 90% of it.
       </p>
       <div className="mt-4 space-y-2">
         {plans === null ? (
@@ -109,7 +111,7 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
                   </span>
                 </span>
                 <span className="num shrink-0 text-right text-[12px] text-muted">
-                  {diff === 0 ? "Even" : diff > 0 ? `You get ${formatUsd(diff)}` : `You pay ${formatUsd(-diff)}`}
+                  {diff === 0 ? "Even" : diff > 0 ? `You get ${formatUsd(netOf(diff))}` : `You pay ${formatUsd(-diff)}`}
                 </span>
               </button>
             );

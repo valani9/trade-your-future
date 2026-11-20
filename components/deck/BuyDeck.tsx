@@ -126,7 +126,12 @@ export function BuyDeck({
     setClaim(null);
     if (!orderId) return;
     try {
-      await fetch("/api/swipes/undo", { method: "POST" });
+      const res = await fetch("/api/swipes/undo", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.show(data.error ?? "It's still held for you in Orders", "error");
+        return;
+      }
       setTop((n) => Math.max(0, n - 1));
       setUndoLeft(0);
       toast.show("Gave it back");

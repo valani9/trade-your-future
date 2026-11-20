@@ -210,15 +210,27 @@ export class DevnetSolana implements SolanaService {
     const cached = this.settled.get(reference);
     if (cached) return cached;
     const memo = `tyf:ref:${reference}`;
-    const signatures = await this.connection.getSignaturesForAddress(account, { limit: 20 });
-    for (const entry of signatures) {
+    let before: string | undefined;
+    for (let page = 0; page < 4; page++) {
+      const batch = await this.connection.getSignaturesForAddress(account, { limit: 50, before });
+      if (batch.length === 0) break;
+      before = batch[batch.length - 1].signature;
+      const found = await this.referenceIn(batch, memo);
+      if (found) {
+        this.settled.set(reference, found);
+        return found;
+      }
+      if (batch.length < 50) break;
+    }
+    return null;
+  }
+
+  private async referenceIn(batch: Array<{ signature: string; err: unknown }>, memo: string): Promise<string | null> {
+    for (const entry of batch) {
       if (entry.err) continue;
       const parsed = await this.connection.getParsedTransaction(entry.signature, { maxSupportedTransactionVersion: 0 });
       const logs = parsed?.meta?.logMessages ?? [];
-      if (logs.some((line) => line.includes(memo))) {
-        this.settled.set(reference, entry.signature);
-        return entry.signature;
-      }
+      if (logs.some((line) => line.includes(memo))) return entry.signature;
     }
     return null;
   }
@@ -278,7 +290,11 @@ export class DevnetSolana implements SolanaService {
     try {
       await this.confirm(signature, blockhash);
     } catch (error) {
-      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { signature });
+      const failed = (error as { failedOnChain?: boolean }).failedOnChain;
+      if (failed && reference) this.settled.delete(reference);
+      throw failed
+        ? error
+        : Object.assign(error instanceof Error ? error : new Error(String(error)), { signature });
     }
     return signature;
   }
@@ -303,7 +319,19 @@ export class DevnetSolana implements SolanaService {
       createTransferInstruction(source, dest, this.escrow.publicKey, baseUnits, [], TOKEN_PROGRAM_ID),
     );
     if (reference) tx.add(new TransactionInstruction({ keys: [], programId: MEMO_PROGRAM_ID, data: Buffer.from(`tyf:ref:${reference}`) }));
-    const sent = await sendAndConfirmTransaction(this.connection, tx, [this.escrow], { commitment: "confirmed" });
+    const blockhash = (await this.connection.getLatestBlockhash()).blockhash;
+    tx.feePayer = this.escrow.publicKey;
+    tx.recentBlockhash = blockhash;
+    tx.sign(this.escrow);
+    const sent = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+    try {
+      await this.confirm(sent, blockhash);
+    } catch (error) {
+      const failed = (error as { failedOnChain?: boolean }).failedOnChain;
+      throw failed
+        ? error
+        : Object.assign(error instanceof Error ? error : new Error(String(error)), { signature: sent });
+    }
     if (reference) this.settled.set(reference, sent);
     return sent;
   }
@@ -312,7 +340,7 @@ export class DevnetSolana implements SolanaService {
     for (let attempt = 0; attempt < 20; attempt++) {
       const status = await this.connection.getSignatureStatuses([signature]);
       const value = status.value[0];
-      if (value?.err) throw new Error(`transaction failed: ${JSON.stringify(value.err)}`);
+      if (value?.err) throw Object.assign(new Error(`transaction failed: ${JSON.stringify(value.err)}`), { failedOnChain: true });
       if (value?.confirmationStatus === "confirmed" || value?.confirmationStatus === "finalized") return;
       await new Promise((resolve) => setTimeout(resolve, 800));
     }

@@ -5,6 +5,7 @@ import { solana } from "@/lib/solana";
 import { centsToBaseUnits } from "@/lib/money";
 import { id } from "@/lib/utils";
 import { DEMO_EMAIL } from "@/lib/auth/users";
+import { refundOrder } from "@/lib/services/orders";
 
 export const DEMO_USER_ID = "demo-alex-rivera";
 
@@ -397,21 +398,14 @@ export async function ensureSeed(db: Db) {
 }
 
 export async function resetDemo(db: Db) {
-  const live = await db.execute<{ id: string; buyer_id: string; amount_cents: number }>(
-    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over','disputed')`,
-  );
-  const rows = (live as unknown as { rows: Array<{ id: string; buyer_id: string; amount_cents: number }> }).rows ?? [];
+  const live = await db.execute<{ id: string; buyer_id: string }>(sql`select id, buyer_id from orders`);
+  const rows = (live as unknown as { rows: Array<{ id: string; buyer_id: string }> }).rows ?? [];
   for (const row of rows) {
-    const buyer = await db.select({ pubkey: users.walletPubkey }).from(users).where(eq(users.id, row.buyer_id)).limit(1);
-    if (!buyer[0]) continue;
     try {
-      await solana().transferFromEscrow({
-        toPubkey: buyer[0].pubkey,
-        baseUnits: centsToBaseUnits(row.amount_cents),
-        reference: `refund:${row.id}`,
-      });
+      // Same lock and transition a release uses, so a refund can't race one into a double payout.
+      await refundOrder(db, row.id, row.buyer_id, "demo_reset");
     } catch {
-      // nothing was escrowed for that order
+      // Nothing escrowed for that order, or it had already finished.
     }
   }
   await db.execute(sql`truncate table events, idempotency_keys, swaps, orders, swipes, listings, plans restart identity cascade`);

@@ -351,8 +351,9 @@ export async function undoClaim(db: Db, userId: string, orderId: string) {
     const { order } = await loadOrder(db, orderId);
     if (order.buyerId !== userId) throw new HttpError(403, "That's not your order", "forbidden");
     if (order.status === "created") {
-      const moved = await transition(db, orderId, ["created"], { status: "failed" });
-      if (!moved) throw new HttpError(409, "Already handled", "illegal_transition");
+      // Nothing was ever charged, so the claim leaves no trace in Orders.
+      const cleared = await db.delete(orders).where(and(eq(orders.id, orderId), eq(orders.status, "created"))).returning({ id: orders.id });
+      if (!cleared[0]) throw new HttpError(409, "Already handled", "illegal_transition");
       await db.update(listings).set({ status: "open" }).where(and(eq(listings.id, order.listingId), eq(listings.status, "pending")));
       await logEvent(db, { orderId, actorId: userId, type: "order.undone" });
       return;

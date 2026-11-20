@@ -12,7 +12,7 @@ import {
   undoClaim,
   withdrawDispute,
 } from "@/lib/services/orders";
-import { acceptSwap, proposeSwap } from "@/lib/services/swaps";
+import { acceptSwap, proposeSwap, recoverStuckSwaps } from "@/lib/services/swaps";
 import { cancelListing, createListing } from "@/lib/services/plans";
 import { declineSwap } from "@/lib/services/swaps";
 import { withIdempotency, type AuthedCtx } from "@/lib/api/helpers";
@@ -147,26 +147,48 @@ describe("swap bookkeeping", () => {
     expect(row.status).toBe("settled");
   });
 
-  it("decline gives back a leg one that had already gone out", async () => {
+  it("finishes an interrupted settlement instead of handing the money back", async () => {
     const db = await freshDb();
     const seller = await makeUser("Seller");
     const buyer = await makeUser("Buyer");
     const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
     const { listing } = await makeListing(seller.id, {}, 10_000);
     const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+    await solana().airdropTokens(seller.walletPubkey, centsToBaseUnits(30_000));
 
-    await solana().transfer({
-      fromSecretEnc: (await db.select().from(users).where(eq(users.id, buyer.id)).limit(1))[0].walletSecretEnc,
-      fromPubkey: buyer.walletPubkey,
-      toPubkey: ESCROW_PUBKEY(),
-      baseUnits: centsToBaseUnits(20_000),
-    });
-    const attempt = `leg1:${buyer.id}:${centsToBaseUnits(20_000).toString()}:decline-case`;
-    await db.update(swaps).set({ settleTx: attempt }).where(eq(swaps.id, swapId));
+    const settling = await db
+      .update(swaps)
+      .set({ status: "accepted", settleTx: "settling" })
+      .where(eq(swaps.id, swapId))
+      .returning({ id: swaps.id });
+    expect(settling[0]).toBeTruthy();
 
     const before = await buyerBalance(buyer.walletPubkey);
-    await declineSwap(db, seller.id, swapId);
-    expect(await buyerBalance(buyer.walletPubkey)).toBe(before + 20_000);
+    await recoverStuckSwaps(db, new Date(Date.now() + 11 * 60_000));
+
+    expect(await buyerBalance(buyer.walletPubkey)).toBe(before + 18_000);
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("settled");
+    expect(row.settleTx).not.toBe("settling");
+  });
+
+  it("cancels a swap that never reached the chain without moving money", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const buyer = await makeUser("Buyer");
+    const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
+    const { listing } = await makeListing(seller.id, {}, 10_000);
+    const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+    await db.update(swaps).set({ status: "accepted" }).where(eq(swaps.id, swapId));
+
+    const before = await buyerBalance(buyer.walletPubkey);
+    await recoverStuckSwaps(db, new Date(Date.now() + 11 * 60_000));
+
+    expect(await buyerBalance(buyer.walletPubkey)).toBe(before);
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("cancelled");
+    const [back] = await db.select().from(listings).where(eq(listings.id, listing.id));
+    expect(back.status).toBe("open");
   });
 });
 
