@@ -73,11 +73,13 @@ export default function WalletPage() {
         )}
       </Card>
 
-      <div className="mt-4">
-        <Button full variant="ghost" onClick={addFunds} loading={adding}>
-          Add test funds
-        </Button>
-      </div>
+      {wallet?.demo ? (
+        <div className="mt-4">
+          <Button full variant="ghost" onClick={addFunds} loading={adding}>
+            Add test funds
+          </Button>
+        </div>
+      ) : null}
 
       <Card className="mt-6">
         <Row>
@@ -87,13 +89,13 @@ export default function WalletPage() {
         <Link href="/orders" className="block">
           <Row className="hover:bg-raised">
             <span className="text-[14px]">Your orders</span>
-            <span className="text-[13px] text-faint">→</span>
+            <span className="text-[13px] text-muted">→</span>
           </Row>
         </Link>
         <Link href="/settings" className="block">
           <Row className="hover:bg-raised">
             <span className="text-[14px]">Settings</span>
-            <span className="text-[13px] text-faint">→</span>
+            <span className="text-[13px] text-muted">→</span>
           </Row>
         </Link>
       </Card>
