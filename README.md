@@ -1,12 +1,10 @@
-# Trade Your Future
+# Empirical
 
-**Swipe to trade the plans you can't keep.**
+**Buy and trade your future.**
 
-You bought the concert tickets in September. Then your best friend booked dinner for the same Saturday, and the game you've been waiting all season for got moved to that night too. Three plans, one evening. Two of them are going to waste.
+Empirical is Tinder for real life: swipe right on the experiences you want, swipe left on the plans you can't make and get paid, or trade one plan for a better one.
 
-Trade Your Future is a marketplace for the plans already sitting on your calendar: concert and game tickets, restaurant reservations, hotel nights, classes, even flights. It notices when your plans collide, lets you sell the one you'll skip in a single swipe, and lets someone across town claim it just as fast. The money for every trade is held in escrow on Solana until the plan has actually changed hands, so neither side has to trust a stranger.
-
-Nobody sees a wallet, a seed phrase, a gas fee or a token. They see a deck of cards, a price, and a dollar balance.
+**Live demo:** https://trade-your-future.vercel.app
 
 ---
 
@@ -14,40 +12,67 @@ Nobody sees a wallet, a seed phrase, a gas fee or a token. They see a deck of ca
 
 1. [The problem](#the-problem)
 2. [What it does](#what-it-does)
-3. [Why it needs a blockchain](#why-it-needs-a-blockchain)
-4. [Architecture](#architecture)
-5. [How Solana is used](#how-solana-is-used)
-6. [Sponsor integrations](#sponsor-integrations)
-7. [Technical breakdown](#technical-breakdown)
-8. [Setup](#setup)
-9. [Tests](#tests)
-10. [Limitations and what's next](#limitations-and-whats-next)
+3. [Where the supply comes from](#where-the-supply-comes-from)
+4. [Why it needs a blockchain](#why-it-needs-a-blockchain)
+5. [Architecture](#architecture)
+6. [How Solana is used](#how-solana-is-used)
+7. [Sponsor integrations](#sponsor-integrations)
+8. [Technical breakdown](#technical-breakdown)
+9. [Setup](#setup)
+10. [Tests](#tests)
+11. [Limitations and what's next](#limitations-and-whats-next)
 
 ---
 
 ## The problem
 
-Plans are bought weeks ahead and life changes in the meantime. The result is a quiet, enormous waste:
+The best real-world experiences are already booked. The window table, the aisle seat next to your friend, the front-row bike at spin class, the last campsite in the park. Someone grabbed it weeks ago.
 
-- **Double-booked nights.** People routinely hold two or three plans for the same evening and only find out the week of.
-- **Reselling is miserable.** Ticket resale lives on one site, reservation transfers on another, hotel nights are basically unsellable, and every channel is a group chat, a DM, or a stranger asking you to send money first.
-- **Trust is the real blocker.** Buyers won't pay before they have the ticket; sellers won't hand it over before they're paid. Most small trades die right there.
+Then their plans change. They cancel late, no-show, or eat the fee. Meanwhile someone a mile away would happily pay for that exact spot. The two never find each other, because listing something is a hassle and the window closes in minutes.
+
+People already pay for access even with a lot of friction. AppointmentTrader has traded $18M in reservations (127k timeslots) on a site where every listing is entered by hand. Sorce turned job hunting into a swipe and passed 80M swipes. So we asked: what if every plan you've booked could be bought, sold or traded with one swipe?
 
 ## What it does
 
+Empirical is a marketplace for real-world experiences. There's one rule across the whole app: swipe right to keep something in your life, swipe left to let it go.
+
+- **Buy.** A feed of real plans near you from people whose plans fell through: a concert, a pottery class, a game tonight. Swipe right to claim it and pay in one tap. Game tickets are priced off live prediction-market odds, so a close game costs more and a blowout costs less. Voice mode reads each card out loud and lets you say "claim" or "pass".
+- **Sell.** When two of your plans overlap, Empirical flags it ("2 plans at Sat 7 PM, sell one?"), suggests a price for the one you'll skip, shows what you'll take home, and lists it in everyone's feed with one swipe.
+- **Trade.** Offer your Friday dinner reservation for someone's Saturday sunset sail and the price difference settles on its own. Less like reselling, more like trading up.
+- **Handover guaranteed.** The buyer's money is held in escrow on Solana until the handover is confirmed. Every step leaves a public receipt, the seller gets paid as soon as it's done, and if anything falls through the buyer gets a full refund.
+
+Nobody using the app sees a wallet, a seed phrase, a gas fee or a token. They see cards, a price and a balance.
+
+### Screens
+
 | Screen | What you do |
 | --- | --- |
-| **Buy** | A deck of resale plans near you. Swipe right to claim, left to pass, tap undo if you slip. Claiming places a 30-minute hold; one tap pays from your balance. Turn on the mic and shop hands-free: the app reads each card aloud and you say "claim" or "pass". |
-| **Sell** | Your own plans, as the same cards. The tab opens with a clash banner when plans overlap ("2 plans at Sat 7 PM — sell one?"). Swipe left to sell, pick a price from a suggestion, swipe right to keep. |
-| **Orders** | A four-step timeline (Claimed → Paid → Handed over → Complete) with the actions each side can take, and a receipt linking every on-chain transaction once money moves. |
+| **Buy** | A deck of resale plans near you. Swipe right to claim, left to pass, tap undo if you slip. Claiming places a 30-minute hold; one tap pays from your balance. Turn on the mic and shop hands-free. |
+| **Sell** | Your own plans, as the same cards. The tab opens with a clash banner when plans overlap. Swipe left to sell, pick a price from a suggestion, swipe right to keep. |
+| **Orders** | A four-step timeline (Claimed, Paid, Handed over, Complete) with the actions each side can take, and a receipt linking every on-chain transaction once money moves. |
 | **Trades** | Offer a plan you hold for one you want. The price difference is settled automatically. |
 | **Wallet** | One dollar balance. No addresses, no fees, nothing to install. |
 
-**Clash-to-cash** is the core loop: the app finds the collision, prices the plan you'll skip, and turns it into money in your balance without you ever leaving the deck.
-
 ### Demo mode
 
-On first boot the app seeds a full marketplace: 60+ listings across Austin, New York, San Francisco and Boston, a dozen sellers, a few real upcoming NBA games pulled from live prediction markets, and a demo shopper with four plans, two of which collide on Saturday night so clash-to-cash is visible immediately. Demo sellers hand over a few seconds after payment so the whole journey can be walked end to end. **Settings → Reset the demo** restores everything. Every code path is shared between demo and live mode except the seed data and the automatic handover.
+On first boot the app seeds a full marketplace: 60+ listings across Austin, New York, San Francisco and Boston, a dozen sellers, a few real upcoming NBA games pulled from live prediction markets, and a demo shopper with four plans, two of which collide on Saturday night so the clash flow is visible immediately. Demo sellers hand over a few seconds after payment so the whole journey can be walked end to end. **Settings > Reset the demo** restores everything. Every code path is shared between demo and live mode except the seed data and the automatic handover.
+
+## Where the supply comes from
+
+Every experience you've booked already lives somewhere you're signed in: a confirmation email, a calendar invite, a ticket in your phone's wallet. That's a huge pool of inventory no marketplace has been able to see. Connect your accounts once and you never have to list anything. Someone with 6 upcoming bookings brings 6 listings the day they sign up, so every user is a buyer and a seller from the start. Today the build imports from Google Calendar and from pasted confirmation emails.
+
+**Why we think this wins**
+
+1. Supply nobody else has. It's already in your connected accounts, so there's no listing step.
+2. Liquidity from day one, since every user shows up as both a buyer and a seller.
+3. One feed for every kind of experience. AppointmentTrader, Upseated and the others each cover one category.
+4. A swipe is fun, and every right swipe is something you actually get to go do.
+5. Trust is built in: escrow until handover and a public receipt for every step.
+6. Network effects city by city. More users means more plans, which makes the feed better, which brings more users.
+
+**Business model:** a 10 to 15% take on each sale and trade (the current build takes 10%), revenue share with venues that opt in, and later, priority swipes on hot drops.
+
+**Built with:** Solana escrow on devnet, Gemini Prediction Markets for live odds, ElevenLabs for voice, QuickNode Streams for on-chain confirmation, and Grok for independent payout checks. Details below.
 
 ## Why it needs a blockchain
 
@@ -157,11 +182,11 @@ stateDiagram-v2
 
 An escrow wallet holds a devnet SPL token (6 decimals; one cent = 10,000 base units) while an order is open:
 
-1. **Claim** — an order intent is created; nothing moves on chain.
-2. **Pay** — the buyer's custodial wallet transfers the amount into the escrow's associated token account, signed server-side.
-3. **Handover** — the seller marks the plan handed over; the release clock starts.
-4. **Complete** — the buyer confirms, or the background tick releases 24 hours after the event starts. Escrow pays the seller their net and keeps the 10% fee.
-5. **Refund** — a seller cancellation, an unresolved dispute with no handover, or an event that starts without a handover returns the full amount to the buyer.
+1. **Claim:** an order intent is created; nothing moves on chain.
+2. **Pay:** the buyer's custodial wallet transfers the amount into the escrow's associated token account, signed server-side.
+3. **Handover:** the seller marks the plan handed over; the release clock starts.
+4. **Complete:** the buyer confirms, or the background tick releases 24 hours after the event starts. Escrow pays the seller their net and keeps the 10% fee.
+5. **Refund:** a seller cancellation, an unresolved dispute with no handover, or an event that starts without a handover returns the full amount to the buyer.
 
 Every transition also posts a Memo transaction reading `tyf:<orderId>:<state>`, so the full audit trail is readable on the public ledger. The platform wallet is the **fee payer** on every transaction, which is why shoppers never need SOL, never see a gas prompt and never touch a wallet. Associated token accounts are created idempotently on first use.
 
@@ -185,17 +210,17 @@ The escrow's secret key is never committed; it lives only in the deployment's en
 
 ## Sponsor integrations
 
-### Gemini Prediction Markets — live odds that price your tickets
+### Gemini Prediction Markets: live odds that price your tickets
 
 A ticket to a coin-flip game is worth more than a ticket to a blowout. For every sports plan the app looks up the matching **moneyline market on Gemini Prediction Markets** (public REST: `GET /v1/prediction-markets/events?status=active&category=Sports&search=…`), matches it to the plan by both teams' names and the closest start time, and reads each side's implied probability from the order book (the bid/ask midpoint, normalised across outcomes).
 
 - **Buy deck:** sports cards carry a live pill such as "Close game · Boston 54%".
-- **Sell sheet:** the suggested resale price is nudged by the market — +8% when the favourite is at or under 60% (a close game), −5% at 80% or more — with a one-line explanation of why.
+- **Sell sheet:** the suggested resale price is nudged by the market: +8% when the favourite is at or under 60% (a close game), −5% at 80% or more, with a one-line explanation of why.
 - **Demo seed:** a few real upcoming NBA games are pulled from the same endpoint at seed time, so the odds are live during the demo.
 
 Code: `lib/services/markets.ts`, `app/api/markets/route.ts`, `app/api/listings/[id]/suggest/route.ts`. Results are cached for 60 seconds and the feature fails closed: if the API is unreachable the card simply shows no pill.
 
-### ElevenLabs — shop the deck by voice
+### ElevenLabs: shop the deck by voice
 
 Voice is a first-class way to use the app, not a garnish:
 
@@ -204,13 +229,13 @@ Voice is a first-class way to use the app, not a garnish:
 
 Code: `lib/services/voice.ts` (TTS, STT, command parser, card narration), `app/api/voice/speak`, `app/api/voice/transcribe`, `lib/voiceClient.ts`. Without an API key the client falls back to the browser's built-in speech so the app still works.
 
-### QuickNode Streams — independent confirmation of every escrow step
+### QuickNode Streams: independent confirmation of every escrow step
 
 A **QuickNode Stream** on Solana devnet watches every block, and a server-side filter (`docs/quicknode-filter.js`) keeps only transactions whose logs carry a `tyf:` memo. Matches are pushed to `POST /api/streams/quicknode`, which verifies QuickNode's HMAC signature (`x-qn-signature` over nonce + timestamp + body), maps each memo back to its order, and stores a `chain.confirmed` event with the slot. The receipt then shows "Seen on the network: funded (slot …) · released (slot …)", a confirmation that comes from the chain itself rather than from our own RPC response.
 
 Code: `lib/services/streams.ts`, `app/api/streams/quicknode/route.ts`, `docs/quicknode-filter.js`.
 
-### Grok on X — ask a third party to check the payout
+### Grok on X: ask a third party to check the payout
 
 Released orders have an **"Ask Grok to verify the payout"** button that opens a post to @grok with the explorer link for the release transaction, asking who was paid and how much. Grok reads the public transaction and answers in the thread, giving buyers and sellers an independent read of the on-chain settlement they can share.
 
@@ -269,7 +294,7 @@ Every amount is an integer number of **cents**; there are no floats anywhere in 
 
 - **Suggested price** = face value × category multiplier (concerts 1.15, sports 1.10, flights 0.85, …) × time-to-event factor (0.85 inside 3 days up to 1.10 beyond 30), rounded to the dollar, then adjusted by live market odds for sports.
 - **Clash detection** sorts a user's active plans by start time and groups any whose intervals overlap, which drives the "2 plans at Sat 7 PM" banner.
-- **Confirmation import** parses a pasted confirmation email (dates, venue, city, price) and classifies transferability — name-locked tickets are marked non-transferable and can't be listed.
+- **Confirmation import** parses a pasted confirmation email (dates, venue, city, price) and classifies transferability: name-locked tickets are marked non-transferable and can't be listed.
 - **Calendar sync** reads the primary Google Calendar for the next 60 days and classifies events by keyword.
 
 ### Background work
@@ -332,7 +357,7 @@ pnpm build
 SOLANA_E2E=1 SOLANA_MOCK=false pnpm vitest run tests/devnet.e2e.test.ts   # real devnet round trip
 ```
 
-API tests run against the same in-process Postgres and a deterministic chain mock, so balances can be asserted exactly. The devnet suite mints, pays into escrow, releases to a seller and posts a memo against the live cluster.
+The Vitest suite has 120 tests, all passing. API tests run against the same in-process Postgres and a deterministic chain mock, so balances can be asserted exactly. The devnet suite mints, pays into escrow, releases to a seller and posts a memo against the live cluster.
 
 ## Limitations and what's next
 
