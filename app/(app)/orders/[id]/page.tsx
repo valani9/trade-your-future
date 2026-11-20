@@ -190,13 +190,8 @@ export default function OrderPage() {
 
       <Card className="overflow-hidden">
         <div className="flex gap-3 p-4">
-<<<<<<< HEAD
-          <div className="h-24 w-20 overflow-hidden rounded-xl bg-raised">
-            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" decoding="async" className="h-full w-full object-cover" /> : null}
-=======
           <div className="h-24 w-20 overflow-hidden rounded-[14px] bg-raised">
-            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" className="h-full w-full object-cover" /> : null}
->>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
+            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" decoding="async" className="h-full w-full object-cover" /> : null}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="line-clamp-2 text-[19px] font-semibold leading-tight tracking-tighter">{order.plan.title}</h1>

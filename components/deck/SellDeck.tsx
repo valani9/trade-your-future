@@ -273,11 +273,7 @@ export function SellDeck({
 
       <button
         onClick={() => setImportOpen(true)}
-<<<<<<< HEAD
-        className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 px-2 text-[13px] text-muted hover:text-ink"
-=======
-        className="mt-5 inline-flex min-h-11 items-center justify-center gap-1.5 px-4 text-[12px] text-muted hover:text-ink"
->>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
+        className="mt-4 inline-flex min-h-11 items-center justify-center gap-1.5 px-4 text-[13px] text-muted hover:text-ink"
       >
         <ClipboardPaste size={13} /> Paste a confirmation
       </button>

@@ -236,11 +236,7 @@ export function BuyDeck({
           <div className="mt-3 flex justify-center">
             <button
               onClick={() => setSwapOpen(true)}
-<<<<<<< HEAD
               className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line px-4 text-[13px] text-muted hover:text-ink"
-=======
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line px-4 text-[12px] text-muted hover:text-ink"
->>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
             >
               <ArrowLeftRight size={13} /> Swap instead
             </button>
@@ -251,11 +247,7 @@ export function BuyDeck({
           <div className="mt-3 flex justify-center">
             <button
               onClick={undo}
-<<<<<<< HEAD
               className="inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-[13px] text-muted hover:text-ink"
-=======
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-[12px] text-muted hover:text-ink"
->>>>>>> 6b4945f (Add waiting states to the order timeline and raise small controls to a full tap target)
             >
               <Undo2 size={13} /> Undo · {undoLeft}s
             </button>
