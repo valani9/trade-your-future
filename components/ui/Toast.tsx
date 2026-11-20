@@ -41,7 +41,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               exit={{ opacity: 0, y: 8, scale: 0.98 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
-                "pointer-events-auto max-w-app rounded-btn border px-4 py-3 text-[13px] font-medium shadow-soft backdrop-blur",
+                "pointer-events-none max-w-app rounded-btn border px-4 py-3 text-[13px] font-medium shadow-soft backdrop-blur",
                 item.tone === "error" && "border-coral/40 bg-[#2A1512]/95 text-ink",
                 item.tone === "money" && "border-mint/30 bg-[#10251D]/95 text-ink",
                 item.tone === "neutral" && "border-line bg-raised/95 text-ink",

@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 import type { FeedCard } from "@/lib/services/feed";
-import { formatEventDate } from "@/lib/utils";
+import { formatEventDate, shortcutsBlocked } from "@/lib/utils";
 import { formatUsd } from "@/lib/money";
 import { Pill } from "@/components/ui/Pill";
 
@@ -47,6 +47,7 @@ export const SwipeCard = forwardRef<
   useEffect(() => {
     if (depth !== 0) return;
     const onKey = (event: KeyboardEvent) => {
+      if (shortcutsBlocked(event)) return;
       if (event.key === "ArrowRight") void commit("right");
       if (event.key === "ArrowLeft") void commit("left");
     };
@@ -81,6 +82,9 @@ export const SwipeCard = forwardRef<
           src={card.imageUrl}
           alt=""
           draggable={false}
+          decoding="async"
+          fetchPriority={depth === 0 ? "high" : "auto"}
+          loading={depth === 0 ? "eager" : "lazy"}
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
@@ -90,10 +94,10 @@ export const SwipeCard = forwardRef<
 
       <div className="absolute inset-x-4 top-4 flex items-start justify-between">
         <div className="flex flex-col gap-1.5">
-          <Pill tone="coral">{card.category}</Pill>
-          <Pill>{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
+          <Pill tone="coral" className="bg-black/55 backdrop-blur-sm">{card.category}</Pill>
+          <Pill className="bg-black/55 backdrop-blur-sm text-ink/90">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
         </div>
-        {card.isDemo ? <span className="text-[10px] tracking-wide text-ink/60">Demo listing</span> : null}
+        {card.isDemo ? <span className="rounded-pill bg-black/55 px-2 py-1 text-[12px] tracking-wide text-ink/90 backdrop-blur-sm">Demo listing</span> : null}
       </div>
 
       <motion.div
@@ -120,7 +124,7 @@ export const SwipeCard = forwardRef<
           {formatEventDate(new Date(card.startsAt), card.timeZone)}
         </p>
         <div className="mt-4 flex items-end justify-between">
-          <span className="text-[11px] uppercase tracking-[0.12em] text-faint">
+          <span className="text-[12px] uppercase tracking-[0.1em] text-ink/70">
             {card.sellerName ? `From ${card.sellerName.split(" ")[0]}` : "Resale"}
           </span>
           <span className="num text-[30px] font-semibold leading-none">{formatUsd(card.priceCents)}</span>

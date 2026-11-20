@@ -62,3 +62,11 @@ export function timeLeftLabel(expiresAt: Date, now = new Date()): string {
   if (hours < 24) return `${hours}h left`;
   return `${Math.round(hours / 24)}d left`;
 }
+
+const TYPING_TARGET = "input, textarea, select, [contenteditable='true'], [role='slider'], [role='dialog']";
+
+export function shortcutsBlocked(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest?.(TYPING_TARGET)) return true;
+  return document.querySelector("[role='dialog'][aria-modal='true']") !== null;
+}

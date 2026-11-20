@@ -11,7 +11,7 @@ const config: Config = {
         line: "rgba(255,255,255,0.08)",
         ink: "#F5F5F7",
         muted: "#9BA1AB",
-        faint: "#7C828C",
+        faint: "#8F95A0",
         coral: "#FF5A4E",
         slate: "#7C8CFF",
         mint: "#34D399",

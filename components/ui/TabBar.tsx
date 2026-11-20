@@ -29,7 +29,7 @@ export function TabBar() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-w-[68px] flex-col items-center gap-1 rounded-btn px-3 py-1.5 text-[11px] font-medium tracking-wide transition-colors",
+                "flex min-w-[68px] flex-col items-center gap-1 rounded-btn px-3 py-1.5 text-[12px] font-medium tracking-wide transition-colors",
                 active ? "text-ink" : "text-faint hover:text-muted",
               )}
             >

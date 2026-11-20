@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     const held = await db
       .select({ total: sql<number>`coalesce(sum(${orders.amountCents}), 0)::int` })
       .from(orders)
-      .where(and(eq(orders.buyerId, userId), inArray(orders.status, ["created", "funded", "handed_over"])));
+      .where(and(eq(orders.buyerId, userId), inArray(orders.status, ["funded", "handed_over", "disputed"])));
     return json({
       balanceCents: cents,
       balanceLabel: formatUsd(cents),

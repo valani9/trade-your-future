@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, Row } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusPill } from "@/components/ui/Pill";
 import { useToast } from "@/components/ui/Toast";
 import { formatEventDate } from "@/lib/utils";
@@ -65,10 +66,15 @@ export default function OrderPage() {
   const [disputeOpen, setDisputeOpen] = useState(false);
   const [note, setNote] = useState("");
   const [meId, setMeId] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/orders/${params.id}`, { cache: "no-store" });
-    if (!res.ok) return;
+    if (!res.ok) {
+      setFailed(true);
+      return;
+    }
+    setFailed(false);
     const data = (await res.json()) as Order;
     setOrder(data);
     const receiptRes = await fetch(`/api/receipts/${params.id}`, { cache: "no-store" });
@@ -145,6 +151,21 @@ export default function OrderPage() {
   }
 
   if (!order) {
+    if (failed) {
+      return (
+        <div className="px-4 pt-6">
+          <EmptyState
+            title="We couldn't find that order."
+            body="It may have been undone, or the link is old."
+            action={
+              <Link href="/orders" className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-coral">
+                Back to your orders
+              </Link>
+            }
+          />
+        </div>
+      );
+    }
     return (
       <div className="space-y-4 px-4 pt-6">
         <Skeleton className="h-56 w-full rounded-card" />
@@ -160,7 +181,7 @@ export default function OrderPage() {
   return (
     <div className="px-4 pb-8">
       <header className="flex items-center justify-between px-1 pt-4 pb-3">
-        <button onClick={() => router.push("/orders")} className="text-[13px] text-muted hover:text-ink">
+        <button onClick={() => router.push("/orders")} className="-ml-2 min-h-11 px-2 text-[13px] text-muted hover:text-ink">
           ← Orders
         </button>
         <StatusPill status={order.status} label={statusLabel(order.status)} />
@@ -169,7 +190,7 @@ export default function OrderPage() {
       <Card className="overflow-hidden">
         <div className="flex gap-3 p-4">
           <div className="h-24 w-20 overflow-hidden rounded-xl bg-raised">
-            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" className="h-full w-full object-cover" /> : null}
+            {order.plan.imageUrl ? <img src={order.plan.imageUrl} alt="" decoding="async" className="h-full w-full object-cover" /> : null}
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="line-clamp-2 text-[19px] font-semibold leading-tight tracking-tighter">{order.plan.title}</h1>
@@ -187,7 +208,7 @@ export default function OrderPage() {
                 <div className="flex w-full items-center">
                   <span className={`h-px flex-1 ${i === 0 ? "bg-transparent" : i <= stepIndex ? "bg-white/30" : "bg-white/10"}`} />
                   <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] ${
+                    className={`flex h-6 w-6 items-center justify-center rounded-full border text-[12px] ${
                       i <= stepIndex ? "border-white/25 bg-white/10 text-ink" : "border-white/12 text-faint"
                     }`}
                   >
@@ -197,7 +218,7 @@ export default function OrderPage() {
                     className={`h-px flex-1 ${i === STATUS_STEPS.length - 1 ? "bg-transparent" : i < stepIndex ? "bg-white/30" : "bg-white/10"}`}
                   />
                 </div>
-                <span className={`text-center text-[10px] ${i <= stepIndex ? "text-ink/80" : "text-faint"}`}>
+                <span className={`text-center text-[12px] ${i <= stepIndex ? "text-ink/80" : "text-faint"}`}>
                   {stepLabel(step)}
                 </span>
               </div>
@@ -206,7 +227,7 @@ export default function OrderPage() {
         </div>
       </Card>
 
-      {order.status === "created" ? (
+      {order.status === "created" && isBuyer ? (
         <div className="mt-4 space-y-2">
           <Button full onClick={() => act("fund")} loading={busy === "fund"}>
             Pay {formatUsd(order.amountCents)}
@@ -218,9 +239,9 @@ export default function OrderPage() {
       {order.status === "handed_over" && isBuyer ? (
         <div className="mt-4 space-y-2">
           <Button full onClick={() => act("confirm")} loading={busy === "confirm"}>
-            Got it — release {formatUsd(order.netCents)}
+            Got it — release the payment
           </Button>
-          <p className="text-center text-[12px] text-faint">
+          <p className="text-center text-[12px] text-muted">
             {order.handoverNote ? order.handoverNote : "Seller marked it handed over."}
           </p>
         </div>
@@ -261,13 +282,21 @@ export default function OrderPage() {
                 Refund {formatUsd(order.amountCents)}
               </Button>
             ) : null}
-            <p className="text-center text-[11px] text-faint">If nobody acts, we settle it automatically in seven days.</p>
+            <p className="text-center text-[12px] text-muted">If nobody acts, we settle it automatically in seven days.</p>
           </div>
         </Card>
       ) : null}
 
       {isSeller && order.status === "created" ? (
         <p className="mt-4 text-center text-[12px] text-faint">Waiting on the buyer to pay.</p>
+      ) : null}
+
+      {isSeller && (order.status === "created" || order.status === "funded") ? (
+        <div className="mt-2">
+          <Button full variant="quiet" size="md" onClick={() => act("cancel")} loading={busy === "cancel"}>
+            Cancel and refund {order.status === "funded" ? formatUsd(order.amountCents) : "the buyer"}
+          </Button>
+        </div>
       ) : null}
 
       <Card className="mt-4">
@@ -292,7 +321,7 @@ export default function OrderPage() {
       {receipt && order.status === "released" ? (
         <div className="mt-4 overflow-hidden rounded-card border border-line bg-raised">
           <div className="relative border-b border-dashed border-white/15 px-5 py-4">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-faint">Receipt</p>
+            <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Receipt</p>
             <p className="mt-1.5 text-[17px] font-semibold tracking-tighter">{order.plan.title}</p>
             <p className="text-[12px] text-muted">
               {formatEventDate(new Date(order.plan.startsAt), order.plan.timeZone)}
@@ -310,7 +339,7 @@ export default function OrderPage() {
                   : "Secured on Solana"}
             </p>
             {receipt.simulated ? (
-              <p className="text-[12px] text-faint">This demo records its own receipts instead of public transactions.</p>
+              <p className="text-[12px] text-muted">This demo records its own receipts instead of public transactions.</p>
             ) : null}
             {(receipt.simulated ? [] : [receipt.funded, receipt.released, receipt.memo]).map((entry, i) =>
               entry.explorer ? (

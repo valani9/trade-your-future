@@ -81,6 +81,7 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
         return;
       }
       setSellPlan(null);
+      setTop((n) => n + 1);
       await load();
       toast.show("Listed. It's in everyone's deck now.", "money");
     } finally {
@@ -90,6 +91,25 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
 
   async function keep() {
     setTop((n) => n + 1);
+  }
+
+  async function unlist() {
+    const listingId = sellPlan?.listing?.id;
+    if (!listingId) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/listings/${listingId}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.show(data.error ?? "Couldn't take it off sale", "error");
+        return;
+      }
+      setSellPlan(null);
+      await load();
+      toast.show("Off sale. It's yours again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function syncCalendar() {
@@ -150,24 +170,20 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
     <div className="flex min-h-[calc(100dvh-72px)] flex-col px-4">
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-faint">Sell</p>
+          <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Sell</p>
           <h1 className="text-[20px] font-semibold tracking-tighter">Your plans</h1>
         </div>
         <button
           onClick={syncCalendar}
-          className="inline-flex items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-[12px] text-muted hover:text-ink"
+          className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line px-4 text-[12px] text-muted hover:text-ink"
         >
           <CalendarPlus size={13} /> Sync
-          {syncing ? <span className="text-[11px] text-faint">…</span> : null}
+          {syncing ? <span className="text-[12px] text-muted">…</span> : null}
         </button>
       </header>
 
       {clashPlans.length >= 2 ? (
-        <button
-          onClick={() => openSell(clashPlans[1])}
-          aria-label={`Sell ${clashPlans[1].title} to resolve the clash`}
-          className="mb-4 block w-full text-left"
-        >
+        <button onClick={() => openSell(clashPlans[1])} className="mb-4 block w-full text-left">
           <Card className="border-coral/25 bg-coral/[0.07] px-4 py-3.5">
             <p className="text-[13px] font-medium text-coral">
               {clashPlans.length} plans at {formatEventDate(new Date(clashPlans[0].startsAt), clashPlans[0].timeZone).split(" · ")[0]} ·{" "}
@@ -240,18 +256,22 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
               <span className="text-[18px]">→</span>
             </button>
           </div>
-          <p className="mt-3 text-center text-[11px] text-faint">Left to sell · right to keep</p>
+          <p className="mt-3 text-center text-[12px] text-muted">Left to sell · right to keep</p>
         </>
       )}
 
       <button
         onClick={() => setImportOpen(true)}
-        className="mt-5 inline-flex items-center justify-center gap-1.5 text-[12px] text-muted hover:text-ink"
+        className="mt-3 inline-flex min-h-11 items-center justify-center gap-1.5 px-2 text-[13px] text-muted hover:text-ink"
       >
         <ClipboardPaste size={13} /> Paste a confirmation
       </button>
 
-      <Sheet open={Boolean(sellPlan)} onClose={() => setSellPlan(null)} title="What's it worth?">
+      <Sheet
+        open={Boolean(sellPlan)}
+        onClose={() => setSellPlan(null)}
+        title={sellPlan?.listing ? "On sale" : "What's it worth?"}
+      >
         {sellPlan ? (
           <>
             <p className="text-[13px] text-muted">
@@ -269,19 +289,25 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
               step={100}
               value={price}
               onChange={(e) => setPrice(Number(e.target.value))}
-              className="mt-4 w-full accent-coral"
+              className="mt-4 h-11 w-full accent-coral"
             />
             <div className="mt-3 rounded-btn border border-line bg-raised px-4 py-3">
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-muted">You get</span>
                 <span className="num font-semibold text-mint">{formatUsd(price - Math.floor(price / 10))}</span>
               </div>
-              <p className="mt-1 text-[11px] text-faint">10% fee, only when it sells.</p>
+              <p className="mt-1 text-[12px] text-muted">10% fee, only when it sells.</p>
             </div>
             <div className="mt-5 space-y-2">
-              <Button full onClick={list} loading={busy}>
-                List for {formatUsd(price)}
-              </Button>
+              {sellPlan.listing ? (
+                <Button full variant="danger" onClick={unlist} loading={busy}>
+                  Take it off sale
+                </Button>
+              ) : (
+                <Button full onClick={list} loading={busy}>
+                  List for {formatUsd(price)}
+                </Button>
+              )}
               <Button full variant="quiet" onClick={() => setSellPlan(null)}>
                 Maybe later
               </Button>
@@ -308,7 +334,7 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
         </div>
       </Sheet>
 
-      {demoMode ? <p className="mt-4 text-center text-[10px] text-faint">Demo workspace</p> : null}
+      {demoMode ? <p className="mt-4 text-center text-[12px] text-muted">Demo workspace</p> : null}
       <button onClick={() => router.refresh()} className="sr-only">
         Refresh
       </button>

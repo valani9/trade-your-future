@@ -21,6 +21,7 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
   const [top, setTop] = useState(0);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [exhausted, setExhausted] = useState(false);
   const [claim, setClaim] = useState<{ orderId: string; card: FeedCard } | null>(null);
   const [paying, setPaying] = useState(false);
@@ -43,9 +44,23 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
 
   useEffect(() => {
     load(null)
-      .catch(() => toast.show("Couldn't load the deck. Pull to retry.", "error"))
+      .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [load, toast]);
+  }, [load]);
+
+  async function reload() {
+    setLoading(true);
+    setError(false);
+    setTop(0);
+    setExhausted(false);
+    try {
+      await load(null);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!cursor || exhausted) return;
@@ -109,7 +124,10 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast.show(data.error ?? "Payment didn't go through", "error");
-        if (res.status === 402) router.push("/wallet");
+        if (res.status === 402) {
+          toast.show("Not enough balance. Top up, then claim it again.", "money");
+          router.push("/wallet");
+        }
         return;
       }
       toast.show("Paid. Held until handover.", "money");
@@ -127,16 +145,28 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
     <div className="flex min-h-[calc(100dvh-72px)] flex-col px-4">
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-faint">Buy</p>
+          <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Buy</p>
           <h1 className="text-[20px] font-semibold tracking-tighter">Tonight, next week, someday</h1>
         </div>
-        {demoMode ? <span className="text-[10px] tracking-wide text-faint">Demo</span> : null}
+        {demoMode ? <span className="text-[12px] tracking-wide text-muted">Demo</span> : null}
       </header>
 
       <div className="relative flex-1">
         <div className="relative mx-auto aspect-[3/4] w-full max-w-[400px]">
           {loading ? (
             <CardSkeleton />
+          ) : error ? (
+            <div className="flex h-full items-center justify-center rounded-card border border-line bg-surface">
+              <EmptyState
+                title="Couldn't load the deck."
+                body="The connection dropped. Nothing was claimed."
+                action={
+                  <Button variant="ghost" onClick={reload}>
+                    Try again
+                  </Button>
+                }
+              />
+            </div>
           ) : done ? (
             <div className="flex h-full items-center justify-center rounded-card border border-line bg-surface">
               <EmptyState
@@ -174,7 +204,7 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
           )}
         </div>
 
-        {!done && !loading ? (
+        {!done && !loading && !error ? (
           <div className="mt-5 flex items-center justify-center gap-5">
             <button
               aria-label="Let it go"
@@ -186,18 +216,18 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
             <button
               aria-label="Claim it"
               onClick={() => deckRef.current?.swipe("right")}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-white shadow-soft transition-transform active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-[#0A0B0D] shadow-soft transition-transform active:scale-95"
             >
               <Heart size={26} strokeWidth={2} fill="currentColor" />
             </button>
           </div>
         ) : null}
 
-        {!done && !loading && visible[0] ? (
+        {!done && !loading && !error && visible[0] ? (
           <div className="mt-3 flex justify-center">
             <button
               onClick={() => setSwapOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-[12px] text-muted hover:text-ink"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line px-4 text-[13px] text-muted hover:text-ink"
             >
               <ArrowLeftRight size={13} /> Swap instead
             </button>
@@ -208,13 +238,13 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
           <div className="mt-3 flex justify-center">
             <button
               onClick={undo}
-              className="inline-flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] text-muted hover:text-ink"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill px-4 text-[13px] text-muted hover:text-ink"
             >
               <Undo2 size={13} /> Undo · {undoLeft}s
             </button>
           </div>
         ) : (
-          <p className="mt-3 text-center text-[11px] text-faint">Swipe right to claim · left to pass</p>
+          <p className="mt-3 text-center text-[12px] text-muted">Swipe right to claim · left to pass</p>
         )}
       </div>
 
@@ -229,7 +259,7 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
             <span className="text-[14px] text-muted">You pay</span>
             <span className="num text-[22px] font-semibold">{claim ? formatUsd(claim.card.priceCents) : ""}</span>
           </div>
-          <p className="mt-1 text-[12px] text-faint">Held until the seller hands over.</p>
+          <p className="mt-1 text-[12px] text-muted">Held until the seller hands over.</p>
         </div>
         <div className="mt-5 space-y-2">
           <Button full onClick={pay} loading={paying}>

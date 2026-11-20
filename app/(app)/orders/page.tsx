@@ -38,6 +38,7 @@ export default function OrdersPage() {
   const [swaps, setSwaps] = useState<SwapRow[] | null>(null);
   const [selling, setSelling] = useState<Array<{ id: string; title: string; venue: string; city: string; priceCents: number; netCents: number }>>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState(false);
 
   const loadSwaps = useCallback(async () => {
     const res = await fetch("/api/swaps", { cache: "no-store" });
@@ -57,6 +58,7 @@ export default function OrdersPage() {
       };
     }
     setItems(null);
+    setError(false);
     if (role === "seller") {
       fetch("/api/plans")
         .then((r) => r.json())
@@ -76,12 +78,15 @@ export default function OrdersPage() {
         .catch(() => undefined);
     }
     fetch(`/api/orders?role=${role}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error("orders");
+        return r.json();
+      })
       .then((data) => {
         if (!cancelled) setItems(data.items ?? []);
       })
       .catch(() => {
-        if (!cancelled) setItems([]);
+        if (!cancelled) setError(true);
       });
     return () => {
       cancelled = true;
@@ -102,18 +107,30 @@ export default function OrdersPage() {
   return (
     <div className="px-4 pb-6">
       <header className="px-1 pt-5 pb-4">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-faint">Orders</p>
+        <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Orders</p>
         <h1 className="text-[20px] font-semibold tracking-tighter">What you&apos;re trading</h1>
       </header>
 
-      <div className="mb-4 flex gap-1 rounded-pill border border-line bg-surface p-1" role="tablist">
+      <div className="mb-4 flex gap-1 rounded-pill border border-line bg-surface p-1" role="tablist" aria-label="Order views">
         {(["buyer", "seller", "trades"] as const).map((r) => (
           <button
             key={r}
             role="tab"
+            id={`tab-${r}`}
             aria-selected={role === r}
+            aria-controls={`panel-${r}`}
+            tabIndex={role === r ? 0 : -1}
             onClick={() => setRole(r)}
-            className={`flex-1 rounded-pill py-2 text-[13px] font-medium transition-colors ${
+            onKeyDown={(e) => {
+              const order = ["buyer", "seller", "trades"] as const;
+              const at = order.indexOf(r);
+              const next = e.key === "ArrowRight" ? order[(at + 1) % order.length] : e.key === "ArrowLeft" ? order[(at + 2) % order.length] : null;
+              if (!next) return;
+              e.preventDefault();
+              setRole(next);
+              document.getElementById(`tab-${next}`)?.focus();
+            }}
+            className={`min-h-11 flex-1 rounded-pill text-[13px] font-medium transition-colors ${
               role === r ? "bg-white/[0.08] text-ink" : "text-muted"
             }`}
           >
@@ -122,7 +139,19 @@ export default function OrdersPage() {
         ))}
       </div>
 
-      {role === "trades" ? (
+      <div id={`panel-${role}`} role="tabpanel" aria-labelledby={`tab-${role}`}>
+      {error ? (
+        <EmptyState
+          title="Couldn't load your orders."
+          body="The connection dropped. Try again in a moment."
+          action={
+            <Button variant="ghost" onClick={() => setRole(role)}>
+              Try again
+            </Button>
+          }
+        />
+      ) : null}
+      {error ? null : role === "trades" ? (
         swaps === null ? (
           <div className="space-y-3">
             <Skeleton className="h-20 w-full" />
@@ -133,7 +162,7 @@ export default function OrdersPage() {
             title="No trades yet."
             body="Open a card you like and tap Swap instead."
             action={
-              <Link href="/buy" className="text-[14px] font-medium text-coral">
+              <Link href="/buy" className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-coral">
                 Browse the deck
               </Link>
             }
@@ -183,7 +212,7 @@ export default function OrdersPage() {
           title="No buyers yet."
           body="Sell a plan from the Sell tab and it shows up in everyone's deck."
           action={
-            <Link href="/sell" className="text-[14px] font-medium text-coral">
+            <Link href="/sell" className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-coral">
               Go to sell
             </Link>
           }
@@ -193,7 +222,7 @@ export default function OrdersPage() {
           title={role === "buyer" ? "Nothing claimed yet." : "Nothing on sale yet."}
           body={role === "buyer" ? "Swipe right on something you want." : "Sell a plan you can't make."}
           action={
-            <Link href={role === "buyer" ? "/buy" : "/sell"} className="text-[14px] font-medium text-coral">
+            <Link href={role === "buyer" ? "/buy" : "/sell"} className="inline-flex min-h-11 items-center px-2 text-[14px] font-medium text-coral">
               {role === "buyer" ? "Browse the deck" : "Go to sell"}
             </Link>
           }
@@ -226,7 +255,7 @@ export default function OrdersPage() {
                 <Card className="flex gap-3 p-3 transition-colors hover:bg-raised">
                   <div className="h-20 w-16 overflow-hidden rounded-xl bg-raised">
                     {order.plan.imageUrl ? (
-                      <img src={order.plan.imageUrl} alt="" className="h-full w-full object-cover" />
+                      <img src={order.plan.imageUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -242,7 +271,7 @@ export default function OrdersPage() {
                     </p>
                     <div className="mt-1.5 flex items-center justify-between">
                       <span className="num text-[15px] font-semibold">{formatUsd(order.amountCents)}</span>
-                      <span className="text-[11px] text-faint">
+                      <span className="text-[12px] text-faint">
                         {role === "seller" ? `You get ${formatUsd(order.netCents)}` : order.sellerName}
                       </span>
                     </div>
@@ -253,6 +282,7 @@ export default function OrdersPage() {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }

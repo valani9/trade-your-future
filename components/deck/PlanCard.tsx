@@ -2,7 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
-import { formatEventDate } from "@/lib/utils";
+import { formatEventDate, shortcutsBlocked } from "@/lib/utils";
 import { formatUsd } from "@/lib/money";
 import { Pill } from "@/components/ui/Pill";
 
@@ -49,7 +49,6 @@ export const PlanCard = forwardRef<
     }
     locked.current = true;
     if (dir === "left") {
-      animate(x, -640, { duration: 0.22, ease: [0.22, 1, 0.36, 1] });
       onSell();
       locked.current = false;
       return;
@@ -69,6 +68,7 @@ export const PlanCard = forwardRef<
   useEffect(() => {
     if (depth !== 0) return;
     const onKey = (event: KeyboardEvent) => {
+      if (shortcutsBlocked(event)) return;
       if (event.key === "ArrowRight") void commit("right");
       if (event.key === "ArrowLeft") void commit("left");
     };
@@ -91,7 +91,15 @@ export const PlanCard = forwardRef<
       className="absolute inset-0 touch-pan-y select-none overflow-hidden rounded-card border border-line bg-surface shadow-soft"
     >
       {plan.imageUrl ? (
-        <img src={plan.imageUrl} alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={plan.imageUrl}
+          alt=""
+          draggable={false}
+          decoding="async"
+          fetchPriority={depth === 0 ? "high" : "auto"}
+          loading={depth === 0 ? "eager" : "lazy"}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-b from-[#1C1F25] to-[#0F1115]" />
       )}
@@ -99,8 +107,8 @@ export const PlanCard = forwardRef<
 
       <div className="absolute inset-x-4 top-4 flex items-start justify-between">
         <div className="flex flex-col gap-1.5">
-          <Pill tone="coral">{plan.status === "listed" ? "On sale" : "Your plan"}</Pill>
-          <Pill>{TRANSFER_LABEL[plan.transferability] ?? plan.transferability}</Pill>
+          <Pill tone="coral" className="bg-black/55 backdrop-blur-sm">{plan.status === "listed" ? "On sale" : "Your plan"}</Pill>
+          <Pill className="bg-black/55 backdrop-blur-sm text-ink/90">{TRANSFER_LABEL[plan.transferability] ?? plan.transferability}</Pill>
         </div>
       </div>
 
@@ -126,7 +134,7 @@ export const PlanCard = forwardRef<
         </p>
         <p className="mt-0.5 text-[13px] text-ink/70">{formatEventDate(new Date(plan.startsAt), plan.timeZone)}</p>
         <div className="mt-4 flex items-end justify-between">
-          <span className="text-[11px] uppercase tracking-[0.12em] text-faint">
+          <span className="text-[12px] uppercase tracking-[0.1em] text-ink/70">
             {plan.listing ? `Listed ${formatUsd(plan.listing.priceCents)}` : `Face ${formatUsd(plan.faceValueCents)}`}
           </span>
           {plan.listing ? (

@@ -42,7 +42,7 @@ export function Onboarding({
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-semibold tracking-tight text-muted">Trade Your Future</span>
         {!last ? (
-          <button onClick={() => setStep(slides.length - 1)} className="text-[13px] text-faint hover:text-muted">
+          <button onClick={() => setStep(slides.length - 1)} className="-mr-2 min-h-11 px-2 text-[13px] text-muted hover:text-ink">
             Skip
           </button>
         ) : null}
@@ -59,10 +59,16 @@ export function Onboarding({
             className="absolute inset-0"
           >
             <div className="relative h-full overflow-hidden rounded-card border border-line">
-              <img src={slides[step].image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img
+                src={slides[step].image}
+                alt=""
+                decoding="async"
+                fetchPriority={step === 0 ? "high" : "auto"}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
               <div className="absolute inset-0 bg-gradient-to-t from-base via-base/45 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-6">
-                <p className="text-[11px] uppercase tracking-[0.16em] text-coral">{slides[step].kicker}</p>
+                <p className="text-[12px] uppercase tracking-[0.14em] text-coral">{slides[step].kicker}</p>
                 <h1 className="mt-3 text-[34px] font-semibold leading-[1.05] tracking-tightest text-balance">
                   {slides[step].title}
                 </h1>

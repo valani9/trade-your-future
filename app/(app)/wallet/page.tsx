@@ -14,10 +14,17 @@ export default function WalletPage() {
   const toast = useToast();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [adding, setAdding] = useState(false);
+  const [error, setError] = useState(false);
 
   async function load() {
-    const res = await fetch("/api/wallet", { cache: "no-store" });
-    if (res.ok) setWallet(await res.json());
+    setError(false);
+    try {
+      const res = await fetch("/api/wallet", { cache: "no-store" });
+      if (!res.ok) throw new Error("wallet");
+      setWallet(await res.json());
+    } catch {
+      setError(true);
+    }
   }
 
   useEffect(() => {
@@ -42,7 +49,7 @@ export default function WalletPage() {
   return (
     <div className="px-4 pb-8">
       <header className="px-1 pt-5 pb-4">
-        <p className="text-[11px] uppercase tracking-[0.16em] text-faint">Balance</p>
+        <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Balance</p>
         <h1 className="text-[20px] font-semibold tracking-tighter">Money you can spend</h1>
       </header>
 
@@ -52,8 +59,15 @@ export default function WalletPage() {
             <p className="num text-[42px] font-semibold leading-none tracking-tightest">
               {formatUsd(wallet.balanceCents)}
             </p>
-            <p className="mt-2 text-[12px] text-faint">Spendable now</p>
+            <p className="mt-2 text-[12px] text-muted">Spendable now</p>
           </>
+        ) : error ? (
+          <div>
+            <p className="text-[15px] font-medium">Couldn&apos;t load your balance.</p>
+            <button onClick={() => void load()} className="mt-2 min-h-11 text-[13px] font-medium text-coral">
+              Try again
+            </button>
+          </div>
         ) : (
           <Skeleton className="h-12 w-40" />
         )}
@@ -68,7 +82,7 @@ export default function WalletPage() {
       <Card className="mt-6">
         <Row>
           <span className="text-[13px] text-muted">Held until handover</span>
-          <span className="num text-[13px] text-ink/80">{formatUsd(wallet?.heldCents ?? 0)}</span>
+          <span className="num text-[13px] text-ink/80">{wallet ? formatUsd(wallet.heldCents) : "—"}</span>
         </Row>
         <Link href="/orders" className="block">
           <Row className="hover:bg-raised">

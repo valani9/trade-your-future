@@ -227,8 +227,8 @@ export function buildFeedRows(now = new Date()) {
 
 export function buildDemoPlans(now = new Date()) {
   const sat = startOfDay(now, (6 - now.getUTCDay() + 7) % 7 || 7);
-  const dinner = new Date(sat.getTime() + 19 * 3_600_000);
-  const concert = new Date(sat.getTime() + 19 * 3_600_000 + 60 * 60_000);
+  const dinner = localTime(sat, 18, 30, CT);
+  const concert = localTime(sat, 19, 0, CT);
   return [
     {
       category: "concert" as Category,
@@ -246,8 +246,8 @@ export function buildDemoPlans(now = new Date()) {
       category: "restaurant" as Category,
       title: "Chef's tasting at Atelier Crenn",
       venue: "Atelier Crenn",
-      city: "San Francisco",
-      timeZone: PT,
+      city: "Austin",
+      timeZone: CT,
       startsAt: dinner,
       endsAt: new Date(dinner.getTime() + 120 * 60_000),
       faceValueCents: 22000,
