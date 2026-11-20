@@ -12,7 +12,9 @@ import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { formatUsd } from "@/lib/money";
 import { SwapSheet } from "@/components/app/SwapSheet";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, Mic, MicOff } from "lucide-react";
+import { listenForCommand, say } from "@/lib/voiceClient";
+import { narrateCard } from "@/lib/services/voice";
 
 export function BuyDeck({
   demoMode,
@@ -40,6 +42,8 @@ export function BuyDeck({
   const [swapOpen, setSwapOpen] = useState(false);
   const deckRef = useRef<SwipeHandle>(null);
   const inFlight = useRef(false);
+  const [voice, setVoice] = useState(false);
+  const voiceRun = useRef(0);
 
   const load = useCallback(
     async (next?: string | null) => {
@@ -209,6 +213,33 @@ export function BuyDeck({
   const visible = cards.slice(top, top + 3);
   const done = !loading && top >= cards.length && exhausted;
 
+  // Hands-free mode: read the top card aloud, listen for "claim" or "pass".
+  useEffect(() => {
+    if (!voice || claim || loading) return;
+    const card = cards[top];
+    if (!card) return;
+    const run = ++voiceRun.current;
+    (async () => {
+      await say(narrateCard(card));
+      for (let attempt = 0; attempt < 2 && voiceRun.current === run; attempt++) {
+        const command = await listenForCommand().catch(() => null);
+        if (voiceRun.current !== run) return;
+        if (command === "claim") return deckRef.current?.swipe("right");
+        if (command === "pass") return deckRef.current?.swipe("left");
+        if (command === "undo") return void undo();
+        if (command === "repeat") {
+          await say(narrateCard(card));
+          continue;
+        }
+        if (attempt === 0) await say("Say claim or pass.");
+      }
+    })();
+    return () => {
+      voiceRun.current++;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice, top, claim, loading, cards.length]);
+
   return (
     <div className="flex min-h-[calc(100dvh-72px)] flex-col px-4">
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
@@ -216,7 +247,21 @@ export function BuyDeck({
           <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Buy</p>
           <h1 className="text-[20px] font-semibold tracking-tighter">Tonight, next week, someday</h1>
         </div>
-        {demoMode ? <span className="text-[12px] tracking-wide text-muted">Demo</span> : null}
+        <div className="flex items-center gap-2">
+          {demoMode ? <span className="text-[12px] tracking-wide text-muted">Demo</span> : null}
+          <button
+            type="button"
+            aria-pressed={voice}
+            aria-label={voice ? "Turn voice off" : "Shop by voice"}
+            onClick={() => {
+              setVoice((v) => !v);
+              if (!voice) toast.show("Voice on. Say claim or pass.");
+            }}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border ${voice ? "border-coral text-coral" : "border-line text-muted"}`}
+          >
+            {voice ? <Mic size={18} /> : <MicOff size={18} />}
+          </button>
+        </div>
       </header>
 
       <div className="relative flex-1">
