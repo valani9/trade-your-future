@@ -259,7 +259,30 @@ export default function OrderPage() {
         </div>
       ) : null}
 
-      {isSeller && (order.status === "funded" || order.status === "handed_over") ? (
+      {order.status === "funded" && isBuyer ? (
+        <div className="mt-4 rounded-card border border-line bg-surface px-4 py-4">
+          <p className="text-[15px] font-medium">
+            Waiting on {order.sellerName?.split(" ")[0] ?? "the seller"} to hand it over
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">
+            Paid and held. You can confirm as soon as it lands — usually within a minute.
+          </p>
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-pill bg-white/10">
+            <div className="h-full w-1/2 animate-shimmer rounded-pill bg-coral/70" />
+          </div>
+        </div>
+      ) : null}
+
+      {order.status === "handed_over" && isSeller ? (
+        <div className="mt-4 rounded-card border border-line bg-surface px-4 py-4">
+          <p className="text-[15px] font-medium">Waiting on {order.buyerName?.split(" ")[0] ?? "the buyer"} to confirm</p>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted">
+            {formatUsd(order.netCents)} goes to you the moment they do.
+          </p>
+        </div>
+      ) : null}
+
+      {isSeller && order.status === "funded" ? (
         <div className="mt-3">
           <Button full variant="ghost" onClick={() => setHandoverOpen(true)}>
             Hand it over to {order.buyerName?.split(" ")[0] ?? "the buyer"}
