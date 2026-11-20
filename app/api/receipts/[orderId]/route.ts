@@ -1,0 +1,31 @@
+import { handle, json } from "@/lib/api/helpers";
+import { getOrder } from "@/lib/services/orders";
+import { ESCROW_PUBKEY } from "@/lib/solana";
+import { config } from "@/lib/config";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request, context: { params: Promise<{ orderId: string }> }) {
+  const { orderId } = await context.params;
+  return handle(request, async ({ userId, db }) => {
+    const order = await getOrder(db, userId, orderId);
+    const cluster = "devnet";
+    const link = (sig: string | null) =>
+      sig ? `https://explorer.solana.com/tx/${sig}?cluster=${cluster}` : null;
+    return json({
+      orderId: order.id,
+      amountCents: order.amountCents,
+      feeCents: order.feeCents,
+      netCents: order.netCents,
+      status: order.status,
+      cluster,
+      escrowAddress: ESCROW_PUBKEY(),
+      mintAddress: config.mint() || null,
+      funded: { signature: order.fundTx, explorer: link(order.fundTx) },
+      released: { signature: order.releaseTx, explorer: link(order.releaseTx) },
+      refunded: { signature: order.refundTx, explorer: link(order.refundTx) },
+      memo: { signature: order.memoTx, explorer: link(order.memoTx) },
+    });
+  });
+}
