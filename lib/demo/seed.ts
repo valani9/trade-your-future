@@ -386,7 +386,7 @@ export async function seedDemo(db: Db, now = new Date()) {
     });
   }
 
-  return { demoUserId, listingCount: listingRows.length };
+  return { demoUserId, sellerIds, listingCount: listingRows.length };
 }
 
 export async function ensureSeed(db: Db) {
@@ -398,7 +398,7 @@ export async function ensureSeed(db: Db) {
 
 export async function resetDemo(db: Db) {
   const live = await db.execute<{ id: string; buyer_id: string; amount_cents: number }>(
-    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over','created')`,
+    sql`select id, buyer_id, amount_cents from orders where status in ('funded','handed_over')`,
   );
   const rows = (live as unknown as { rows: Array<{ id: string; buyer_id: string; amount_cents: number }> }).rows ?? [];
   for (const row of rows) {

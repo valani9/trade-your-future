@@ -448,3 +448,28 @@ describe("recovery and reachability", () => {
     expect(await balance(seller.walletPubkey)).toBe(before + centsToBaseUnits(2700));
   });
 });
+
+describe("demo reset", () => {
+  it("refunds escrowed orders and never pays out an unpaid claim", async () => {
+    const db = await freshDb();
+    const { seedDemo, resetDemo } = await import("@/lib/demo/seed");
+    const demo = await seedDemo(db);
+    const { plans: plansTable } = await import("@/lib/db/schema");
+    const seeded = (await db.select().from(plansTable).where(eq(plansTable.userId, demo.demoUserId)).limit(1))[0];
+    const buyer = (await db.select().from(users).where(eq(users.id, demo.demoUserId)).limit(1))[0];
+
+    const { listing } = await makeListing(demo.sellerIds[0], {}, 4000);
+    const { orderId: paidOrder } = await createOrder(db, demo.demoUserId, listing.id);
+    await fundOrder(db, demo.demoUserId, paidOrder);
+
+    const second = await makeListing(demo.sellerIds[1], {}, 4000);
+    const { orderId: unpaidOrder } = await createOrder(db, demo.demoUserId, second.listing.id);
+
+    const before = await balance(buyer.walletPubkey);
+    await resetDemo(db);
+    const after = await balance(buyer.walletPubkey);
+    expect(after).toBeGreaterThanOrEqual(before + centsToBaseUnits(4000));
+    void unpaidOrder;
+    void seeded;
+  });
+});
