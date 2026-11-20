@@ -1,5 +1,7 @@
 "use client";
 
+import { ListenButton } from "@/components/app/ListenButton";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -53,6 +55,7 @@ type Receipt = {
   memo: { signature: string | null; explorer: string | null };
   escrowAddress: string;
   cluster: string;
+  confirmations?: Array<{ state: string; signature: string; slot: number | null; explorer: string | null }>;
 };
 
 export default function OrderPage() {
@@ -392,6 +395,27 @@ export default function OrderPage() {
                 </a>
               ) : null,
             )}
+            {!receipt.simulated && receipt.confirmations?.length ? (
+              <p className="text-[12px] text-muted" data-testid="stream-confirmations">
+                Seen on the network: {receipt.confirmations.map((c) => `${c.state.replace("_", " ")}${c.slot ? ` (slot ${c.slot})` : ""}`).join(" · ")}
+              </p>
+            ) : null}
+            {!receipt.simulated && receipt.released.explorer ? (
+              <a
+                href={`https://x.com/intent/post?text=${encodeURIComponent(
+                  `@grok can you check this Solana devnet transaction and tell me who got paid and how much? ${receipt.released.explorer}`,
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-white/[0.04]"
+              >
+                <span className="truncate">Ask Grok to verify the payout</span>
+                <ExternalLink size={13} />
+              </a>
+            ) : null}
+            <ListenButton
+              text={`${order.plan.title}. ${order.status === "released" ? `Paid to ${order.sellerName ?? "the seller"}` : `Status ${String(order.status).replace("_", " ")}`}. ${(order.amountCents / 100).toFixed(2)} dollars.`}
+            />
           </div>
         </div>
       ) : null}

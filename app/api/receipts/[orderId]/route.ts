@@ -3,6 +3,7 @@ import { getOrder, orderMemos } from "@/lib/services/orders";
 import { solana } from "@/lib/solana";
 import { ESCROW_PUBKEY } from "@/lib/solana";
 import { config } from "@/lib/config";
+import { chainConfirmations } from "@/lib/services/streams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export async function GET(request: Request, context: { params: Promise<{ orderId
         signature: entry.signature,
         explorer: link(entry.signature),
       })),
+      confirmations: (await chainConfirmations(db, orderId)).map((c) => ({ ...c, explorer: link(c.signature) })),
       simulated: solana().kind === "mock",
     });
   });
