@@ -36,6 +36,7 @@ export default function OrdersPage() {
   const [role, setRole] = useState<"buyer" | "seller" | "trades">("buyer");
   const [items, setItems] = useState<Order[] | null>(null);
   const [swaps, setSwaps] = useState<SwapRow[] | null>(null);
+  const [selling, setSelling] = useState<Array<{ id: string; title: string; venue: string; city: string; priceCents: number; netCents: number }>>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
   const loadSwaps = useCallback(async () => {
@@ -56,6 +57,24 @@ export default function OrdersPage() {
       };
     }
     setItems(null);
+    if (role === "seller") {
+      fetch("/api/plans")
+        .then((r) => r.json())
+        .then((data) => {
+          const listed = (data.items ?? [])
+            .filter((p: { listing: unknown }) => Boolean(p.listing))
+            .map((p: { id: string; title: string; venue: string; city: string; listing: { priceCents: number; netCents: number } }) => ({
+              id: p.id,
+              title: p.title,
+              venue: p.venue,
+              city: p.city,
+              priceCents: p.listing.priceCents,
+              netCents: p.listing.netCents,
+            }));
+          if (!cancelled) setSelling(listed);
+        })
+        .catch(() => undefined);
+    }
     fetch(`/api/orders?role=${role}`)
       .then((r) => r.json())
       .then((data) => {
@@ -159,7 +178,17 @@ export default function OrdersPage() {
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />
         </div>
-      ) : items.length === 0 ? (
+      ) : role === "seller" && items.length === 0 && selling.length === 0 ? (
+        <EmptyState
+          title="No buyers yet."
+          body="Sell a plan from the Sell tab and it shows up in everyone's deck."
+          action={
+            <Link href="/sell" className="text-[14px] font-medium text-coral">
+              Go to sell
+            </Link>
+          }
+        />
+      ) : items.length === 0 && selling.length === 0 ? (
         <EmptyState
           title={role === "buyer" ? "Nothing claimed yet." : "Nothing on sale yet."}
           body={role === "buyer" ? "Swipe right on something you want." : "Sell a plan you can't make."}
@@ -171,6 +200,26 @@ export default function OrdersPage() {
         />
       ) : (
         <ul className="space-y-3">
+          {role === "seller"
+            ? selling.map((plan) => (
+                <li key={`listing-${plan.id}`}>
+                  <Card className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[15px] font-medium">{plan.title}</p>
+                        <p className="mt-0.5 truncate text-[12px] text-muted">
+                          {plan.venue} · {plan.city}
+                        </p>
+                      </div>
+                      <span className="num shrink-0 whitespace-nowrap text-[14px] font-semibold">
+                        {formatUsd(plan.priceCents)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[12px] text-faint">On sale · you get {formatUsd(plan.netCents)}</p>
+                  </Card>
+                </li>
+              ))
+            : null}
           {items.map((order) => (
             <li key={order.id}>
               <Link href={`/orders/${order.id}`} className="block">

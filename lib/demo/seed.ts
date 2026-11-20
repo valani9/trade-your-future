@@ -6,6 +6,8 @@ import { centsToBaseUnits } from "@/lib/money";
 import { id } from "@/lib/utils";
 import { DEMO_EMAIL } from "@/lib/auth/users";
 
+export const DEMO_USER_ID = "demo-alex-rivera";
+
 type Category = "concert" | "sports" | "restaurant" | "hotel" | "class" | "experience" | "flight";
 type Transfer = "transferable" | "venue_approval" | "name_change" | "non_transferable";
 
@@ -388,6 +390,7 @@ export async function ensureSeed(db: Db) {
 }
 
 export async function resetDemo(db: Db) {
-  await db.execute(sql`truncate table events, idempotency_keys, swaps, orders, swipes, listings, plans, users restart identity cascade`);
+  await db.execute(sql`truncate table events, idempotency_keys, swaps, orders, swipes, listings, plans restart identity cascade`);
+  await db.execute(sql`delete from users where email <> ${DEMO_EMAIL}`);
   return seedDemo(db);
 }

@@ -5,12 +5,7 @@ import path from "node:path";
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const phase = process.env.PHASE ?? "P1";
 const round = process.env.ROUND ?? "1";
-const outDir = path.join(
-  process.env.HOME ?? ".",
-  ".capy/work/tyf/shots",
-  phase,
-  `round-${round}`,
-);
+const outDir = path.join(process.cwd(), "screenshots", phase, `round-${round}`);
 
 const sizes = [
   { name: "mobile", width: 390, height: 844 },

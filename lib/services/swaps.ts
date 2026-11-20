@@ -140,7 +140,7 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
         baseUnits: centsToBaseUnits(sign$ - feeCents(sign$)),
       });
     } catch (error) {
-      await db.update(swaps).set({ status: "accepted" }).where(eq(swaps.id, swapId));
+      await db.update(swaps).set({ status: "proposed" }).where(eq(swaps.id, swapId));
       throw new HttpError(502, "The payment didn't go through", "settlement_failed");
     }
   }

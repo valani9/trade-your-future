@@ -262,7 +262,11 @@ export default function OrderPage() {
           <div className="space-y-2 px-5 py-4">
             <p className="flex items-center gap-1.5 text-[12px] text-muted">
               <Shield size={13} className="text-mint" />
-              {receipt.simulated ? "Held safely until you confirm" : "Secured on Solana"}
+              {order.status === "released"
+                ? `Paid to ${order.sellerName ?? "the seller"}`
+                : receipt.simulated
+                  ? "Held safely until you confirm"
+                  : "Secured on Solana"}
             </p>
             {receipt.simulated ? (
               <p className="text-[12px] text-faint">This demo records its own receipts instead of public transactions.</p>

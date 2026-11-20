@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, Row } from "@/components/ui/Card";
 import { Pill, StatusPill } from "@/components/ui/Pill";
@@ -6,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { formatUsd } from "@/lib/money";
 
 export default function Styleguide() {
+  if (process.env.NODE_ENV === "production" && process.env.SHOW_STYLEGUIDE !== "true") notFound();
   return (
     <main className="mx-auto max-w-app space-y-10 px-5 py-10">
       <header>

@@ -9,6 +9,9 @@ async function signIn(page: import("@playwright/test").Page) {
   }
   await page.waitForURL(/\/buy/, { timeout: 45_000 });
   await page.getByRole("button", { name: "Claim it", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+  await page.evaluate(async () => {
+    for (let i = 0; i < 5; i++) await fetch("/api/wallet/fund", { method: "POST" });
+  });
 }
 
 test("full journey: claim, pay, handover, complete, receipt", async ({ page }) => {
@@ -37,6 +40,10 @@ test("full journey: claim, pay, handover, complete, receipt", async ({ page }) =
 
 test("clash banner offers a sale and the listing lands", async ({ page }) => {
   await signIn(page);
+  await page.evaluate(async () => {
+    await fetch("/api/demo/reset", { method: "POST" });
+  });
+  await page.goto("/sell");
   await page.getByRole("link", { name: /sell/i }).first().click();
   await expect(page.getByText(/plans at/i)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: /to resolve the clash/i })).toBeVisible();
