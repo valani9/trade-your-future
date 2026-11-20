@@ -79,7 +79,7 @@ function categoryOf(text: string): ParsedPlan["category"] {
   if (/\b(reservation|table for|dinner|brunch|lunch|restaurant|omakase|tasting)\b/i.test(text)) return "restaurant";
   if (/\b(class|workshop|lesson|cooking|pottery|seminar)\b/i.test(text)) return "class";
   if (/\b(vs\.?|game|stadium|arena|match|playoff)\b/i.test(text)) return "sports";
-  if (/\b(concert|tour|live|music|festival|show|theater|theatre|comedy)\b/i.test(text)) return "concert";
+  if (/\b(concert|tour|live|music|festival|show|theater|theatre|comedy|tickets?|admission|doors|order for)\b/i.test(text)) return "concert";
   return "experience";
 }
 

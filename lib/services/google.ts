@@ -99,7 +99,7 @@ export async function fetchCalendarEvents(
   let token = user.googleAccessToken;
   const expired = !user.googleExpiresAt || user.googleExpiresAt.getTime() < Date.now() + 60_000;
   if ((!token || expired) && user.googleRefreshToken) token = await refreshToken(db, userId, user);
-  if (!token && process.env.DEMO_MODE !== "false") return demoEvents;
+  if (!token && process.env.DEMO_MODE !== "false" && user.isDemo) return demoEvents;
   if (!token) throw new HttpError(409, "Reconnect Google to pull your calendar", "reconnect_google");
 
   const timeMin = new Date().toISOString();
@@ -165,7 +165,7 @@ export async function syncCalendar(db: Db, userId: string, fetchImpl: typeof fet
     }
   }
 
-  if (seen.length) {
+  {
     const gone = await db
       .select({ id: plans.id })
       .from(plans)
