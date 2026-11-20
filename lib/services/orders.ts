@@ -615,7 +615,7 @@ export async function cronTick(db: Db, now = new Date()) {
         const { order } = await loadOrder(db, row.id);
         const buyer = await getWalletSecret(order.buyerId);
         await logEvent(db, { orderId: row.id, actorId: "system", type: "order.refund_sending" });
-        const signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents));
+        const signature = await payOut(buyer.pubkey, centsToBaseUnits(order.amountCents), `refund:${row.id}`);
         await db.update(orders).set({ refundTx: signature }).where(eq(orders.id, row.id));
         await logEvent(db, { orderId: row.id, actorId: "system", type: "order.refund_settled", payload: { signature } });
         stranded++;
