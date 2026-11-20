@@ -37,6 +37,8 @@ flowchart TD
 
 **Order state machine.** `created -> funded -> handed_over -> released`, with `refunded`, `disputed` and `failed` branches. Every transition is a compare-and-swap on the order row, so two concurrent requests can never both win; anything else returns 409. The payout and refund states are claimed before money moves, so a retry after an ambiguous transfer error cannot pay twice, and an order interrupted between the state change and the transfer is finished by the next cron tick. Each transition writes an audit event and posts a Memo transaction.
 
+A trade (swap) follows the same discipline. Accepting one claims the settlement by writing a time-stamped marker with a compare-and-swap before any transfer, moves the price difference into escrow under a stable reference, and pays the other side their 90% under a second one. If the process dies in between, the next tick finishes the payout — replaying the same references, which the ledger dedupes — rather than sending money back that may already have moved. A trade that never reached the chain is cancelled and both plans are handed back.
+
 A dispute holds the money where it is: the buyer can withdraw it, the seller can refund it, and if neither acts it settles on its own after seven days — refunding the buyer when nothing was handed over, paying the seller when it was.
 
 **Data.** `users`, `plans`, `listings`, `swipes`, `orders`, `swaps`, `events`, plus an `idempotency_keys` table. Constraints do real work: one open listing per plan, one live order per listing, positive prices, non-negative fees, end after start.
@@ -86,7 +88,9 @@ For real devnet tokens:
 pnpm solana:setup   # creates the escrow keypair, funds it, creates the mint, prints ESCROW_SECRET + MINT_ADDRESS
 ```
 
-Environment variables (see `.env.example`): `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SOLANA_RPC_URL`, `ESCROW_SECRET`, `MINT_ADDRESS`, `WALLET_ENC_KEY`, `DEMO_MODE`, `SOLANA_MOCK`.
+Environment variables (see `.env.example`): `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SOLANA_RPC_URL`, `ESCROW_SECRET`, `MINT_ADDRESS`, `WALLET_ENC_KEY`, `DEMO_MODE`, `SOLANA_MOCK`, `CRON_SECRET`, `CRON_SELF_TICK`.
+
+Background work runs from `instrumentation.ts`, which ticks every five minutes in-process: unpaid holds expire after 30 minutes, handovers auto-release 24 hours after the event starts, stale listings close, and interrupted payouts and trades are finished. Set `CRON_SELF_TICK=off` to turn the timer off and drive `GET /api/cron/tick` from an external scheduler with `Authorization: Bearer $CRON_SECRET`.
 
 ## Tests
 
