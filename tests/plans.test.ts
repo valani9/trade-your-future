@@ -7,7 +7,7 @@ import { plans } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { HttpError } from "@/lib/config";
 
-let currentUser: { id: string } | null = null;
+let currentUser: { id: string } | null = null as { id: string } | null;
 vi.mock("@/lib/auth", () => ({
   requireUser: async () => currentUser,
   auth: async () => (currentUser ? { user: { id: currentUser.id } } : null),

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { formatEventDate } from "@/lib/utils";
 import { formatUsd } from "@/lib/money";
 import { Card } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/Pill";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { statusLabel } from "@/components/app/orderStatus";
 
@@ -22,12 +23,38 @@ type Order = {
   plan: { title: string; venue: string; city: string; startsAt: string; timeZone: string; imageUrl: string | null };
 };
 
+type SwapRow = {
+  id: string;
+  status: string;
+  diffCents: number;
+  direction: "incoming" | "outgoing";
+  offer: { id: string; title: string; city: string; startsAt: string; imageUrl: string | null } | null;
+  want: { listingId: string; title: string; city: string; startsAt: string; imageUrl: string | null; priceCents: number } | null;
+};
+
 export default function OrdersPage() {
-  const [role, setRole] = useState<"buyer" | "seller">("buyer");
+  const [role, setRole] = useState<"buyer" | "seller" | "trades">("buyer");
   const [items, setItems] = useState<Order[] | null>(null);
+  const [swaps, setSwaps] = useState<SwapRow[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const loadSwaps = useCallback(async () => {
+    const res = await fetch("/api/swaps", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      setSwaps(data.items ?? []);
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
+    if (role === "trades") {
+      setSwaps(null);
+      void loadSwaps();
+      return () => {
+        cancelled = true;
+      };
+    }
     setItems(null);
     fetch(`/api/orders?role=${role}`)
       .then((r) => r.json())
@@ -40,7 +67,18 @@ export default function OrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [role]);
+  }, [role, loadSwaps]);
+
+  async function answerSwap(id: string, action: "accept" | "decline") {
+    setBusy(id);
+    try {
+      const res = await fetch(`/api/swaps/${id}/${action}`, { method: "POST" });
+      if (!res.ok) return;
+      await loadSwaps();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div className="px-4 pb-6">
@@ -50,7 +88,7 @@ export default function OrdersPage() {
       </header>
 
       <div className="mb-4 flex gap-1 rounded-pill border border-line bg-surface p-1" role="tablist">
-        {(["buyer", "seller"] as const).map((r) => (
+        {(["buyer", "seller", "trades"] as const).map((r) => (
           <button
             key={r}
             role="tab"
@@ -60,12 +98,63 @@ export default function OrdersPage() {
               role === r ? "bg-white/[0.08] text-ink" : "text-muted"
             }`}
           >
-            {r === "buyer" ? "Buying" : "Selling"}
+            {r === "buyer" ? "Buying" : r === "seller" ? "Selling" : "Trades"}
           </button>
         ))}
       </div>
 
-      {items === null ? (
+      {role === "trades" ? (
+        swaps === null ? (
+          <div className="space-y-3">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        ) : swaps.length === 0 ? (
+          <EmptyState
+            title="No trades yet."
+            body="Open a card you like and tap Swap instead."
+            action={
+              <Link href="/buy" className="text-[14px] font-medium text-coral">
+                Browse the deck
+              </Link>
+            }
+          />
+        ) : (
+          <ul className="space-y-3">
+            {swaps.map((swap) => (
+              <li key={swap.id}>
+                <Card className="p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] text-muted">
+                      {swap.direction === "incoming" ? "They want" : "You want"}
+                    </p>
+                    <StatusPill status={swap.status} />
+                  </div>
+                  <p className="mt-1 text-[15px] font-medium">{swap.want?.title ?? "A plan"}</p>
+                  <p className="text-[12px] text-faint">
+                    for {swap.offer?.title ?? "your plan"}
+                    {swap.diffCents === 0
+                      ? " · even trade"
+                      : swap.diffCents > 0
+                        ? ` · +${formatUsd(swap.diffCents)}`
+                        : ` · −${formatUsd(-swap.diffCents)}`}
+                  </p>
+                  {swap.direction === "incoming" && swap.status === "proposed" ? (
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" onClick={() => answerSwap(swap.id, "accept")} loading={busy === swap.id}>
+                        Accept
+                      </Button>
+                      <Button size="sm" variant="quiet" onClick={() => answerSwap(swap.id, "decline")}>
+                        Decline
+                      </Button>
+                    </div>
+                  ) : null}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : items === null ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-24 w-full" />

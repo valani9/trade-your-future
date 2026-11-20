@@ -11,6 +11,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
 import { formatUsd } from "@/lib/money";
+import { SwapSheet } from "@/components/app/SwapSheet";
+import { ArrowLeftRight } from "lucide-react";
 
 export function BuyDeck({ demoMode }: { demoMode: boolean }) {
   const router = useRouter();
@@ -23,6 +25,7 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
   const [claim, setClaim] = useState<{ orderId: string; card: FeedCard } | null>(null);
   const [paying, setPaying] = useState(false);
   const [undoLeft, setUndoLeft] = useState(0);
+  const [swapOpen, setSwapOpen] = useState(false);
   const deckRef = useRef<SwipeHandle>(null);
   const inFlight = useRef(false);
 
@@ -190,6 +193,17 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
           </div>
         ) : null}
 
+        {!done && !loading && visible[0] ? (
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={() => setSwapOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-pill border border-line px-3 py-1.5 text-[12px] text-muted hover:text-ink"
+            >
+              <ArrowLeftRight size={13} /> Swap instead
+            </button>
+          </div>
+        ) : null}
+
         {undoLeft > 0 ? (
           <div className="mt-3 flex justify-center">
             <button
@@ -203,6 +217,8 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
           <p className="mt-3 text-center text-[11px] text-faint">Swipe right to claim · left to pass</p>
         )}
       </div>
+
+      <SwapSheet card={swapOpen ? (visible[0] ?? null) : null} onClose={() => setSwapOpen(false)} />
 
       <Sheet open={Boolean(claim)} onClose={() => setClaim(null)} title="Claimed">
         <p className="text-[14px] leading-relaxed text-muted">

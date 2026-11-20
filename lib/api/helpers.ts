@@ -7,6 +7,7 @@ import type { Db } from "@/lib/db";
 import { idempotencyKeys } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { id } from "@/lib/utils";
+import { rateLimit } from "./ratelimit";
 
 export function json(data: unknown, status = 200) {
   return NextResponse.json(data, { status });
@@ -25,6 +26,15 @@ export async function handle(
   try {
     const user = await requireUser();
     if (!user) return fail(401, "Sign in to continue", "unauthorized");
+    if (request.method !== "GET") {
+      const check = rateLimit(`${user.id}:${new URL(request.url).pathname.split("/").slice(0, 4).join("/")}`);
+      if (!check.ok) {
+        return NextResponse.json(
+          { error: "Slow down a moment", code: "rate_limited" },
+          { status: 429, headers: { "retry-after": String(check.retryAfter) } },
+        );
+      }
+    }
     const db = await appDb();
     return await fn({ userId: user.id, db, request });
   } catch (error) {
