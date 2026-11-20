@@ -41,6 +41,8 @@ Empirical is a marketplace for real-world experiences. There's one rule across t
 - **Trade.** Offer your Friday dinner reservation for someone's Saturday sunset sail and the price difference settles on its own. Less like reselling, more like trading up.
 - **Handover guaranteed.** The buyer's money is held in escrow on Solana until the handover is confirmed. Every step leaves a public receipt, the seller gets paid as soon as it's done, and if anything falls through the buyer gets a full refund.
 
+No wallet to connect, on purpose: every user gets their own Solana wallet created and encrypted for them, the platform pays every fee, and app data lives in Postgres (Neon).
+
 Nobody using the app sees a wallet, a seed phrase, a gas fee or a token. They see cards, a price and a balance.
 
 ### Screens
