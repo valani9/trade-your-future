@@ -158,7 +158,7 @@ describe("swap bookkeeping", () => {
 
     const settling = await db
       .update(swaps)
-      .set({ status: "accepted", settleTx: "settling" })
+      .set({ status: "accepted", settleTx: `settling:${Date.now() - 11 * 60_000}` })
       .where(eq(swaps.id, swapId))
       .returning({ id: swaps.id });
     expect(settling[0]).toBeTruthy();
@@ -170,6 +170,44 @@ describe("swap bookkeeping", () => {
     const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
     expect(row.status).toBe("settled");
     expect(row.settleTx).not.toBe("settling");
+  });
+
+  it("leaves a settlement that just started alone", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller");
+    const buyer = await makeUser("Buyer");
+    const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
+    const { listing } = await makeListing(seller.id, {}, 10_000);
+    const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+    await db.update(swaps).set({ status: "accepted", settleTx: `settling:${Date.now()}` }).where(eq(swaps.id, swapId));
+
+    const before = await buyerBalance(buyer.walletPubkey);
+    expect(await recoverStuckSwaps(db)).toBe(0);
+
+    expect(await buyerBalance(buyer.walletPubkey)).toBe(before);
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("accepted");
+  });
+
+  it("gives up on a marked swap whose payer never sent anything", async () => {
+    const db = await freshDb();
+    const seller = await makeUser("Seller", { funded: false });
+    const buyer = await makeUser("Buyer");
+    const mine = await makePlan(buyer.id, { faceValueCents: 30_000 });
+    const { listing } = await makeListing(seller.id, {}, 10_000);
+    const { id: swapId } = await proposeSwap(db, buyer.id, mine.id, listing.id);
+    await db
+      .update(swaps)
+      .set({ status: "accepted", settleTx: `settling:${Date.now() - 11 * 60_000}` })
+      .where(eq(swaps.id, swapId));
+
+    await recoverStuckSwaps(db);
+
+    const [row] = await db.select().from(swaps).where(eq(swaps.id, swapId));
+    expect(row.status).toBe("cancelled");
+    expect(row.settleTx).toBeNull();
+    const [back] = await db.select().from(listings).where(eq(listings.id, listing.id));
+    expect(back.status).toBe("open");
   });
 
   it("cancels a swap that never reached the chain without moving money", async () => {

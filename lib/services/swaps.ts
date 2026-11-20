@@ -132,11 +132,13 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
       await db.update(plans).set({ status: "active" }).where(eq(plans.id, offerRows[0].id));
       throw new HttpError(402, "The other side is short on balance", "insufficient_funds");
     }
-    // Claiming the settlement is what makes recovery safe: a swap with a marker
-    // has money in flight, so recovery finishes it instead of unwinding it.
+    // The marker is both the claim and the clock. A swap carrying one has money
+    // in flight, so recovery finishes it instead of unwinding it, and it only
+    // touches markers old enough that no acceptance can still be running.
+    const marker = `${SETTLING}${Date.now()}`;
     const settling = await db
       .update(swaps)
-      .set({ settleTx: SETTLING })
+      .set({ settleTx: marker })
       .where(and(eq(swaps.id, swapId), eq(swaps.status, "accepted"), isNull(swaps.settleTx)))
       .returning({ id: swaps.id });
     if (!settling[0]) throw new HttpError(409, "Already handled", "illegal_transition");
@@ -148,9 +150,15 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
         await log(db, swapId, userId, "swap.settlement_unconfirmed", { error: String(error) });
         throw new HttpError(502, "That payment is finishing up. Check the order in a moment.", "settlement_pending");
       }
-      await db.update(swaps).set({ status: "proposed", settleTx: null }).where(eq(swaps.id, swapId));
-      await db.update(listings).set({ status: "open" }).where(eq(listings.id, want.listing.id));
-      await db.update(plans).set({ status: "active" }).where(eq(plans.id, offerRows[0].id));
+      const mine = await db
+        .update(swaps)
+        .set({ status: "proposed", settleTx: null })
+        .where(and(eq(swaps.id, swapId), eq(swaps.status, "accepted"), eq(swaps.settleTx, marker)))
+        .returning({ id: swaps.id });
+      if (mine[0]) {
+        await db.update(listings).set({ status: "open" }).where(and(eq(listings.id, want.listing.id), eq(listings.status, "pending")));
+        await db.update(plans).set({ status: "active" }).where(and(eq(plans.id, offerRows[0].id), eq(plans.status, "listed")));
+      }
       await log(db, swapId, userId, "swap.settlement_failed", { error: String(error) });
       throw new HttpError(502, "The payment didn't go through", "settlement_failed");
     }
@@ -161,7 +169,7 @@ export async function acceptSwap(db: Db, userId: string, swapId: string) {
   return { id: swapId, status: "settled", diffCents: swap.diffCents, settleTx };
 }
 
-const SETTLING = "settling";
+const SETTLING = "settling:";
 
 async function moveDifference(db: Db, swap: typeof swaps.$inferSelect) {
   const sign$ = Math.abs(swap.diffCents);
@@ -179,9 +187,9 @@ async function moveDifference(db: Db, swap: typeof swaps.$inferSelect) {
       reference: `swap:${swap.id}`,
     });
   } catch (error) {
-    if (!(error as { signature?: string }).signature) {
-      throw Object.assign(new Error(String(error)), { legOneSent: false });
-    }
+    // A signature only means the transfer may be out there. Whether it landed is
+    // settled by the reference check on the retry, never assumed here.
+    throw Object.assign(new Error(String(error)), { legOneSent: Boolean((error as { signature?: string }).signature) });
   }
   try {
     return await solana().transferFromEscrow({
@@ -195,40 +203,43 @@ async function moveDifference(db: Db, swap: typeof swaps.$inferSelect) {
 }
 
 async function finalizeSwap(db: Db, swap: typeof swaps.$inferSelect, settleTx: string | null) {
-  const claimed = await db
-    .update(swaps)
-    .set({ status: "settled", settleTx })
-    .where(and(eq(swaps.id, swap.id), eq(swaps.status, "accepted")))
-    .returning({ id: swaps.id });
-  if (!claimed[0]) return;
+  await db.transaction(async (tx) => {
+    const inner = tx as unknown as Db;
+    const claimed = await inner
+      .update(swaps)
+      .set({ status: "settled", settleTx })
+      .where(and(eq(swaps.id, swap.id), eq(swaps.status, "accepted")))
+      .returning({ id: swaps.id });
+    if (!claimed[0]) return;
 
-  const want = (
-    await db
-      .select({ listing: listings, plan: plans })
-      .from(listings)
-      .innerJoin(plans, eq(listings.planId, plans.id))
-      .where(eq(listings.id, swap.wantListingId))
-      .limit(1)
-  )[0];
-  const offer = (await db.select().from(plans).where(eq(plans.id, swap.offerPlanId)).limit(1))[0];
-  if (!want || !offer) return;
+    const want = (
+      await inner
+        .select({ listing: listings, plan: plans })
+        .from(listings)
+        .innerJoin(plans, eq(listings.planId, plans.id))
+        .where(eq(listings.id, swap.wantListingId))
+        .limit(1)
+    )[0];
+    const offer = (await inner.select().from(plans).where(eq(plans.id, swap.offerPlanId)).limit(1))[0];
+    if (!want || !offer) return;
 
-  await db
-    .update(plans)
-    .set({ userId: swap.counterpartyId, status: "swapped", externalId: `${offer.externalId ?? offer.id}:swapped:${swap.id}` })
-    .where(eq(plans.id, swap.offerPlanId));
-  await db
-    .update(plans)
-    .set({ userId: swap.proposerId, status: "swapped", externalId: `${want.plan.externalId ?? want.plan.id}:swapped:${swap.id}` })
-    .where(eq(plans.id, want.plan.id));
-  await db
-    .update(listings)
-    .set({ status: "sold" })
-    .where(and(eq(listings.planId, want.plan.id), inArray(listings.status, ["open", "pending"])));
-  await db
-    .update(listings)
-    .set({ status: "cancelled" })
-    .where(and(eq(listings.planId, swap.offerPlanId), inArray(listings.status, ["open", "pending"])));
+    await inner
+      .update(plans)
+      .set({ userId: swap.counterpartyId, status: "swapped", externalId: `${offer.externalId ?? offer.id}:swapped:${swap.id}` })
+      .where(eq(plans.id, swap.offerPlanId));
+    await inner
+      .update(plans)
+      .set({ userId: swap.proposerId, status: "swapped", externalId: `${want.plan.externalId ?? want.plan.id}:swapped:${swap.id}` })
+      .where(eq(plans.id, want.plan.id));
+    await inner
+      .update(listings)
+      .set({ status: "sold" })
+      .where(and(eq(listings.planId, want.plan.id), inArray(listings.status, ["open", "pending"])));
+    await inner
+      .update(listings)
+      .set({ status: "cancelled" })
+      .where(and(eq(listings.planId, swap.offerPlanId), inArray(listings.status, ["open", "pending"])));
+  });
 }
 
 async function restoreAfterSwap(db: Db, swap: typeof swaps.$inferSelect) {
@@ -274,11 +285,14 @@ export async function recoverStuckSwaps(db: Db, now = new Date()) {
   const rows = await db
     .select()
     .from(swaps)
-    .where(and(eq(swaps.status, "accepted"), sql`${swaps.createdAt} <= ${new Date(now.getTime() - 10 * 60_000)}`))
-    .limit(10);
+    .where(eq(swaps.status, "accepted"))
+    .orderBy(swaps.createdAt)
+    .limit(50);
+  const cutoff = now.getTime() - 10 * 60_000;
   let recovered = 0;
   for (const swap of rows) {
-    if (!swap.settleTx) {
+    const marker = swap.settleTx;
+    if (marker === null) {
       // Never reached the chain, so giving the plans back is safe.
       const released = await db
         .update(swaps)
@@ -291,14 +305,36 @@ export async function recoverStuckSwaps(db: Db, now = new Date()) {
       }
       continue;
     }
-    // Money is in flight or landed. References make the retry idempotent, so the
-    // recovery finishes the payout rather than returning a leg that may have paid.
+    if (!marker.startsWith(SETTLING)) continue;
+    const startedAt = Number(marker.slice(SETTLING.length));
+    if (!Number.isFinite(startedAt) || startedAt > cutoff) continue;
+    const claimed = await db
+      .update(swaps)
+      .set({ settleTx: `${SETTLING}${startedAt}:r` })
+      .where(and(eq(swaps.id, swap.id), eq(swaps.settleTx, marker)))
+      .returning({ id: swaps.id });
+    if (!claimed[0]) continue;
+    // References make the retry idempotent, so this finishes the payout rather
+    // than returning a leg that may already have paid.
     try {
       const settleTx = await moveDifference(db, swap);
       await finalizeSwap(db, swap, settleTx);
       await log(db, swap.id, "system", "swap.recovered", { settleTx });
       recovered++;
     } catch (error) {
+      if ((error as { legOneSent?: boolean }).legOneSent === false) {
+        const unwound = await db
+          .update(swaps)
+          .set({ status: "cancelled", settleTx: null })
+          .where(and(eq(swaps.id, swap.id), eq(swaps.status, "accepted"), eq(swaps.settleTx, `${SETTLING}${startedAt}:r`)))
+          .returning({ id: swaps.id });
+        if (unwound[0]) {
+          await restoreAfterSwap(db, swap);
+          recovered++;
+        }
+        continue;
+      }
+      await db.update(swaps).set({ settleTx: marker }).where(and(eq(swaps.id, swap.id), eq(swaps.settleTx, `${SETTLING}${startedAt}:r`)));
       await log(db, swap.id, "system", "swap.recovery_failed", { error: String(error) });
     }
   }

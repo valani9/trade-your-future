@@ -286,7 +286,6 @@ export class DevnetSolana implements SolanaService {
     tx.recentBlockhash = blockhash;
     tx.partialSign(this.escrow, signer);
     const signature = await this.connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
-    if (reference) this.settled.set(reference, signature);
     try {
       await this.confirm(signature, blockhash);
     } catch (error) {
@@ -296,6 +295,7 @@ export class DevnetSolana implements SolanaService {
         ? error
         : Object.assign(error instanceof Error ? error : new Error(String(error)), { signature });
     }
+    if (reference) this.settled.set(reference, signature);
     return signature;
   }
 
