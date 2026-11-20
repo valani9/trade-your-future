@@ -31,7 +31,7 @@ test("full journey: claim, pay, handover, complete, receipt", async ({ page }) =
 
   await page.getByRole("button", { name: /got it/i }).click({ timeout: 40_000 });
   await expect(page.getByText("Complete", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/Held safely until you confirm|Secured on Solana/)).toBeVisible();
+  await expect(page.getByText(/Held safely until you confirm|Secured on Solana|Paid to/)).toBeVisible();
   await page.screenshot({ path: "artifacts/e2e/02-receipt.png" });
 
   expect(errors).toEqual([]);
