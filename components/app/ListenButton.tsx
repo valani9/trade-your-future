@@ -18,7 +18,7 @@ export function ListenButton({ text, label = "Listen" }: { text: string; label?:
           setPlaying(false);
         }
       }}
-      className="flex min-h-11 w-full items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-white/[0.04]"
+      className="flex min-h-11 w-full items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-ink/[0.04]"
       aria-label={label}
     >
       <span>{playing ? "Playing…" : label}</span>

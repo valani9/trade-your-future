@@ -227,16 +227,16 @@ export default function OrderPage() {
             {STATUS_STEPS.map((step, i) => (
               <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
                 <div className="flex w-full items-center">
-                  <span className={`h-px flex-1 ${i === 0 ? "bg-transparent" : i <= stepIndex ? "bg-white/30" : "bg-white/10"}`} />
+                  <span className={`h-px flex-1 ${i === 0 ? "bg-transparent" : i <= stepIndex ? "bg-ink/30" : "bg-ink/10"}`} />
                   <span
                     className={`flex h-6 w-6 items-center justify-center rounded-full border text-[12px] ${
-                      i <= stepIndex ? "border-white/25 bg-white/10 text-ink" : "border-white/12 text-faint"
+                      i <= stepIndex ? "border-coral bg-coral text-white" : "border-line bg-surface text-faint"
                     }`}
                   >
                     {i <= stepIndex ? <Check size={11} strokeWidth={3} /> : i + 1}
                   </span>
                   <span
-                    className={`h-px flex-1 ${i === STATUS_STEPS.length - 1 ? "bg-transparent" : i < stepIndex ? "bg-white/30" : "bg-white/10"}`}
+                    className={`h-px flex-1 ${i === STATUS_STEPS.length - 1 ? "bg-transparent" : i < stepIndex ? "bg-ink/30" : "bg-ink/10"}`}
                   />
                 </div>
                 <span className={`text-center text-[12px] ${i <= stepIndex ? "text-ink/80" : "text-faint"}`}>
@@ -276,7 +276,7 @@ export default function OrderPage() {
           <p className="mt-1 text-[13px] leading-relaxed text-muted">
             Paid and held. You can confirm as soon as it lands — usually within a minute.
           </p>
-          <div className="mt-3 h-1 w-full overflow-hidden rounded-pill bg-white/10">
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-pill bg-ink/10">
             <div className="h-full w-1/2 animate-shimmer rounded-pill bg-coral/70" />
           </div>
         </div>
@@ -363,9 +363,9 @@ export default function OrderPage() {
       </Card>
 
       {receipt && order.status === "released" ? (
-        <div className="mt-4 overflow-hidden rounded-card border border-line bg-raised">
-          <div className="relative border-b border-dashed border-white/15 px-5 py-4">
-            <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Receipt</p>
+        <div className="mt-4 overflow-hidden rounded-card border border-line bg-surface shadow-card">
+          <div className="relative border-b border-dashed border-ink/15 px-5 py-4">
+            <p className="text-[13px] font-semibold text-muted">Receipt</p>
             <p className="mt-1.5 text-[17px] font-semibold tracking-tighter">{order.plan.title}</p>
             <p className="text-[12px] text-muted">
               {formatEventDate(new Date(order.plan.startsAt), order.plan.timeZone)}
@@ -392,7 +392,7 @@ export default function OrderPage() {
                   href={entry.explorer}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-white/[0.04]"
+                  className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-ink/[0.04]"
                 >
                   <span className="truncate">{i === 0 ? "Payment" : i === 1 ? "Payout" : "Receipt"}</span>
                   <ExternalLink size={13} />
@@ -411,7 +411,7 @@ export default function OrderPage() {
                 )}`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-white/[0.04]"
+                className="flex min-h-11 items-center justify-between rounded-btn border border-line px-3 text-[12px] text-ink/80 hover:bg-ink/[0.04]"
               >
                 <span className="truncate">Ask Grok to verify the payout</span>
                 <ExternalLink size={13} />
@@ -515,7 +515,7 @@ export default function OrderPage() {
           onChange={(e) => setNote(e.target.value)}
           rows={3}
           placeholder="Tickets forwarded to your email"
-          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[14px] text-ink placeholder:text-faint focus:border-white/40 focus-visible:outline-none"
+          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[14px] text-ink placeholder:text-faint focus:border-ink/40 focus-visible:outline-none"
         />
         <div className="mt-4">
           <Button full onClick={handover} loading={busy === "handover"}>

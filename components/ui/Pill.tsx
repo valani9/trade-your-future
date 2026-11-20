@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 type Tone = "neutral" | "coral" | "slate" | "mint";
 
 const tones: Record<Tone, string> = {
-  neutral: "bg-black/55 text-ink/90 border border-white/15",
-  coral: "bg-[#2A1512] text-coral border border-coral/45",
-  slate: "bg-[#151832] text-slate border border-slate/45",
-  mint: "bg-[#10251D] text-mint border border-mint/45",
+  neutral: "bg-raised text-ink/80",
+  coral: "bg-coral/10 text-coral",
+  slate: "bg-slate/10 text-slate",
+  mint: "bg-mint/10 text-mint",
 };
 
 export function Pill({
@@ -18,7 +18,7 @@ export function Pill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-pill px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.06em]",
+        "inline-flex items-center gap-1 rounded-pill px-3 py-1 text-[12px] font-semibold capitalize",
         tones[tone],
         className,
       )}

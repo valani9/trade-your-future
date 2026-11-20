@@ -128,8 +128,8 @@ export default function OrdersPage() {
   return (
     <div className="px-4 pb-6">
       <header className="px-1 pt-5 pb-4">
-        <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Orders</p>
-        <h1 className="text-[20px] font-semibold tracking-tighter">What you&apos;re trading</h1>
+        <p className="text-[13px] font-semibold text-muted">Orders</p>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">What you&apos;re trading</h1>
       </header>
 
       <div className="mb-4 flex gap-1 rounded-pill border border-line bg-surface p-1" role="tablist" aria-label="Order views">
@@ -152,7 +152,7 @@ export default function OrdersPage() {
               document.getElementById(`tab-${next}`)?.focus();
             }}
             className={`min-h-11 flex-1 rounded-pill text-[13px] font-medium transition-colors ${
-              role === r ? "bg-white/[0.08] text-ink" : "text-muted"
+              role === r ? "bg-ink/[0.08] text-ink" : "text-muted"
             }`}
           >
             {r === "buyer" ? "Buying" : r === "seller" ? "Selling" : "Trades"}

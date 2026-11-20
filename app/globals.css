@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   html,
@@ -14,16 +14,16 @@
   }
 
   body {
-    font-feature-settings: "ss01" on, "cv11" on;
+    font-feature-settings: "ss01" on;
     overscroll-behavior-y: none;
   }
 
   ::selection {
-    background: rgba(255, 90, 78, 0.28);
+    background: rgba(255, 77, 46, 0.2);
   }
 
   :focus-visible {
-    outline: 2px solid rgba(255, 90, 78, 0.85);
+    outline: 2px solid rgba(255, 77, 46, 0.85);
     outline-offset: 2px;
     border-radius: 6px;
   }

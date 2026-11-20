@@ -246,8 +246,8 @@ export function BuyDeck({
     <div className="flex min-h-[calc(100dvh-72px)] flex-col px-4">
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
         <div>
-          <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Buy</p>
-          <h1 className="text-[20px] font-semibold tracking-tighter">Tonight, next week, someday</h1>
+          <p className="text-[13px] font-semibold text-muted">Buy</p>
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">Tonight, next week, someday</h1>
         </div>
         <div className="flex items-center gap-2">
           {demoMode ? <span className="text-[12px] tracking-wide text-muted">Demo</span> : null}
@@ -324,16 +324,16 @@ export function BuyDeck({
             <button
               aria-label="Let it go"
               onClick={() => deckRef.current?.swipe("left")}
-              className="flex h-16 w-16 items-center justify-center rounded-full border border-line bg-white/[0.04] text-slate transition-transform active:scale-95"
+              className="flex h-[68px] w-[68px] items-center justify-center rounded-full border border-line bg-surface text-ink shadow-soft transition-transform active:scale-90"
             >
-              <X size={26} strokeWidth={2} />
+              <X size={28} strokeWidth={2.6} />
             </button>
             <button
               aria-label="Claim it"
               onClick={() => deckRef.current?.swipe("right")}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-[#0A0B0D] shadow-soft transition-transform active:scale-95"
+              className="flex h-[76px] w-[76px] items-center justify-center rounded-full bg-coral text-white shadow-[0_18px_36px_-12px_rgba(255,77,46,0.6)] transition-transform active:scale-90"
             >
-              <Heart size={26} strokeWidth={2} fill="currentColor" />
+              <Heart size={30} strokeWidth={2} fill="currentColor" />
             </button>
           </div>
         ) : null}
@@ -342,7 +342,7 @@ export function BuyDeck({
           <div className="mt-3 flex justify-center">
             <button
               onClick={() => setSwapOpen(true)}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line px-4 text-[13px] text-muted hover:text-ink"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-pill border border-line bg-surface px-4 text-[13px] font-semibold text-ink/80 shadow-card hover:text-ink"
             >
               <ArrowLeftRight size={13} /> Swap instead
             </button>
@@ -372,7 +372,7 @@ export function BuyDeck({
         <div className="mt-5 rounded-btn border border-line bg-raised px-4 py-3.5">
           <div className="flex items-center justify-between">
             <span className="text-[14px] text-muted">You pay</span>
-            <span className="num text-[22px] font-semibold">{claim ? formatUsd(claim.card.priceCents) : ""}</span>
+            <span className="num text-[24px] font-extrabold">{claim ? formatUsd(claim.card.priceCents) : ""}</span>
           </div>
           <p className="mt-1 text-[12px] text-muted">Held until the seller hands over.</p>
         </div>

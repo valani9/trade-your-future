@@ -92,7 +92,7 @@ export const SwipeCard = forwardRef<
           void commit(info.offset.x > 0 ? "right" : "left");
         }
       }}
-      className="absolute inset-0 touch-pan-y select-none rounded-card border border-line bg-surface shadow-soft overflow-hidden"
+      className="absolute inset-0 touch-pan-y select-none overflow-hidden rounded-card bg-[#1A1A19] text-white shadow-soft"
     >
       {card.imageUrl ? (
         <img
@@ -105,52 +105,52 @@ export const SwipeCard = forwardRef<
           className="absolute inset-0 h-full w-full object-cover"
         />
       ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1C1F25] to-[#0F1115]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#FF8A5C] to-[#FF4D2E]" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-base via-base/35 to-transparent" style={{ top: "40%" }} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" style={{ top: "35%" }} />
 
       <div className="absolute inset-x-4 top-4 flex items-start justify-between">
         <div className="flex flex-col gap-1.5">
-          <Pill tone="coral" className="bg-black/55 backdrop-blur-sm">{card.category}</Pill>
-          <Pill className="bg-black/55 backdrop-blur-sm text-ink/90">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
+          <Pill className="bg-white text-ink shadow-card">{card.category}</Pill>
+          <Pill className="bg-black/40 backdrop-blur-md text-white">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
           {odds ? (
-            <Pill className="whitespace-nowrap bg-black/55 backdrop-blur-sm text-ink/90" data-testid="market-odds">
+            <Pill className="whitespace-nowrap bg-black/40 backdrop-blur-md text-white" data-testid="market-odds">
               {odds.closeGame ? "Close game" : "Odds"} · {odds.favorite.name.split(" ").slice(-1)[0]}{" "}
               {Math.round(odds.favorite.probability * 100)}%
             </Pill>
           ) : null}
         </div>
-        {card.isDemo ? <span className="rounded-pill bg-black/55 px-2 py-1 text-[12px] tracking-wide text-ink/90 backdrop-blur-sm">Demo listing</span> : null}
+        {card.isDemo ? <span className="rounded-pill bg-black/40 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-md">Demo listing</span> : null}
       </div>
 
       <motion.div
         aria-hidden
         style={{ opacity: keepOpacity }}
-        className="pointer-events-none absolute left-5 top-24 rotate-[-10deg] rounded-btn border-2 border-mint px-3 py-1 text-[18px] font-bold tracking-wider text-mint"
+        className="pointer-events-none absolute left-5 top-24 rotate-[-10deg] rounded-2xl border-[3px] border-[#3DDC97] bg-black/20 px-4 py-1.5 text-[22px] font-extrabold tracking-wider text-[#3DDC97]"
       >
         CLAIM
       </motion.div>
       <motion.div
         aria-hidden
         style={{ opacity: goOpacity }}
-        className="pointer-events-none absolute right-5 top-24 rotate-[10deg] rounded-btn border-2 border-slate px-3 py-1 text-[18px] font-bold tracking-wider text-slate"
+        className="pointer-events-none absolute right-5 top-24 rotate-[10deg] rounded-2xl border-[3px] border-white bg-black/20 px-4 py-1.5 text-[22px] font-extrabold tracking-wider text-white"
       >
         PASS
       </motion.div>
 
       <div className="absolute inset-x-0 bottom-0 p-5">
-        <h2 className="line-clamp-2 text-[26px] font-semibold leading-[1.1] tracking-tighter">{card.title}</h2>
-        <p className="mt-1.5 text-[13px] text-muted">
+        <h2 className="line-clamp-2 text-[28px] font-extrabold leading-[1.05] tracking-tighter text-white">{card.title}</h2>
+        <p className="mt-2 text-[14px] font-medium text-white/80">
           {card.venue} · {card.city}
         </p>
-        <p className="mt-0.5 text-[13px] text-ink/70">
+        <p className="mt-0.5 text-[14px] text-white/70">
           {formatEventDate(new Date(card.startsAt), card.timeZone)}
         </p>
         <div className="mt-4 flex items-end justify-between">
-          <span className="text-[12px] uppercase tracking-[0.1em] text-ink/70">
+          <span className="rounded-pill bg-white/15 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-md">
             {card.sellerName ? `From ${card.sellerName.split(" ")[0]}` : "Resale"}
           </span>
-          <span className="num text-[30px] font-semibold leading-none">{formatUsd(card.priceCents)}</span>
+          <span className="num text-[32px] font-extrabold leading-none text-white">{formatUsd(card.priceCents)}</span>
         </div>
       </div>
     </motion.div>

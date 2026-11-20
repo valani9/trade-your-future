@@ -49,8 +49,8 @@ export default function WalletPage() {
   return (
     <div className="px-4 pb-8">
       <header className="px-1 pt-5 pb-4">
-        <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Balance</p>
-        <h1 className="text-[20px] font-semibold tracking-tighter">Money you can spend</h1>
+        <p className="text-[13px] font-semibold text-muted">Balance</p>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">Money you can spend</h1>
       </header>
 
       <Card className="px-5 py-6">

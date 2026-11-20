@@ -42,8 +42,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
                 "pointer-events-none max-w-app rounded-btn border px-4 py-3 text-[13px] font-medium shadow-soft backdrop-blur",
-                item.tone === "error" && "border-coral/40 bg-[#2A1512]/95 text-ink",
-                item.tone === "money" && "border-mint/30 bg-[#10251D]/95 text-ink",
+                item.tone === "error" && "border-coral/20 bg-[#FFF1EE] text-ink",
+                item.tone === "money" && "border-mint/20 bg-[#ECF8F2] text-ink",
                 item.tone === "neutral" && "border-line bg-raised/95 text-ink",
               )}
             >

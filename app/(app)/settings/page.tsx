@@ -42,8 +42,8 @@ export default function SettingsPage() {
   return (
     <div className="px-4 pb-8">
       <header className="px-1 pt-5 pb-4">
-        <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Settings</p>
-        <h1 className="text-[20px] font-semibold tracking-tighter">Account</h1>
+        <p className="text-[13px] font-semibold text-muted">Settings</p>
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">Account</h1>
       </header>
 
       <Card>

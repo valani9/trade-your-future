@@ -20,7 +20,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-30 border-b border-line bg-[#2A1512] px-4 py-2 text-center text-[12px] text-ink/80"
+      className="sticky top-0 z-30 border-b border-line bg-[#FFF1EE] px-4 py-2 text-center text-[12px] font-medium text-coral"
     >
       You&apos;re offline. We&apos;ll pick up when you&apos;re back.
     </div>

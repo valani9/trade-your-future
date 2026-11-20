@@ -11,7 +11,7 @@ export default function Styleguide() {
   return (
     <main className="mx-auto max-w-app space-y-10 px-5 py-10">
       <header>
-        <p className="text-[11px] uppercase tracking-[0.16em] text-faint">Design system</p>
+        <p className="text-[13px] font-semibold text-faint">Design system</p>
         <h1 className="mt-2 text-[34px] font-semibold tracking-tightest">After dark</h1>
       </header>
 

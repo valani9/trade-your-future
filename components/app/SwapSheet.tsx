@@ -101,7 +101,7 @@ export function SwapSheet({ card, onClose }: { card: FeedCard | null; onClose: (
                 key={plan.id}
                 onClick={() => propose(plan)}
                 disabled={sending !== null}
-                className="flex w-full items-center gap-3 rounded-btn border border-line bg-raised px-3.5 py-3 text-left transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                className="flex w-full items-center gap-3 rounded-btn border border-line bg-raised px-3.5 py-3 text-left transition-colors hover:bg-ink/[0.06] disabled:opacity-50"
               >
                 <ArrowLeftRight size={16} className="shrink-0 text-slate" />
                 <span className="min-w-0 flex-1">

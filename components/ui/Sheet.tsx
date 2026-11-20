@@ -77,7 +77,7 @@ export function Sheet({
           <motion.button
             aria-label="Close"
             tabIndex={-1}
-            className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-ink/40 backdrop-blur-[2px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -96,8 +96,8 @@ export function Sheet({
               className,
             )}
           >
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" aria-hidden />
-            {title ? <h2 className="mb-4 text-[22px] font-semibold tracking-tighter">{title}</h2> : null}
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-ink/15" aria-hidden />
+            {title ? <h2 className="mb-4 text-[24px] font-extrabold tracking-tighter">{title}</h2> : null}
             {children}
           </motion.div>
         </div>

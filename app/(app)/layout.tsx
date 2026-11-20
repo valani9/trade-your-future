@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         aria-hidden
         className="pointer-events-none fixed left-[max(32px,calc(50%-540px))] top-1/2 hidden w-[280px] -translate-y-1/2 select-none lg:block"
       >
-        <p className="text-[12px] uppercase tracking-[0.16em] text-coral">Trade Your Future</p>
+        <p className="text-[13px] font-semibold text-coral">Empirical</p>
         <h1 className="mt-3 text-[40px] font-semibold leading-[1.02] tracking-tightest">
           Buy and trade
           <br />

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 
 const slides = [
   {
-    kicker: "Trade Your Future",
+    kicker: "Empirical",
     title: "Buy and trade your future.",
     body: "Tickets, tables, nights away. Swipe right to claim it, left to let it go.",
     image: "/demo/wine-bar.webp",
@@ -40,9 +40,9 @@ export function Onboarding({
   return (
     <main className="mx-auto flex min-h-dvh max-w-app flex-col px-5 pb-[max(env(safe-area-inset-bottom),24px)] pt-6">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-semibold tracking-tight text-muted">Trade Your Future</span>
+        <span className="text-[22px] font-extrabold tracking-tighter text-ink">Empirical<span className="text-coral">.</span></span>
         {!last ? (
-          <button onClick={() => setStep(slides.length - 1)} className="-mr-2 inline-flex min-h-11 min-w-11 items-center justify-center px-3 text-[13px] text-muted hover:text-ink">
+          <button onClick={() => setStep(slides.length - 1)} className="-mr-1 inline-flex min-h-11 min-w-11 items-center justify-center rounded-pill px-4 text-[14px] font-semibold text-muted hover:text-ink">
             Skip
           </button>
         ) : null}
@@ -58,7 +58,7 @@ export function Onboarding({
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-0"
           >
-            <div className="relative h-full overflow-hidden rounded-card border border-line">
+            <div className="relative h-full overflow-hidden rounded-card bg-[#1A1A19] text-white shadow-soft">
               <img
                 src={slides[step].image}
                 alt=""
@@ -66,13 +66,13 @@ export function Onboarding({
                 fetchPriority={step === 0 ? "high" : "auto"}
                 className="absolute inset-0 h-full w-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-base via-base/45 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-6">
-                <p className="text-[12px] uppercase tracking-[0.14em] text-coral">{slides[step].kicker}</p>
-                <h1 className="mt-3 text-[34px] font-semibold leading-[1.05] tracking-tightest text-balance">
+                <p className="inline-flex rounded-pill bg-white px-3 py-1 text-[12px] font-bold text-ink">{slides[step].kicker}</p>
+                <h1 className="mt-3 text-[36px] font-extrabold leading-[1.02] tracking-tightest text-white text-balance">
                   {slides[step].title}
                 </h1>
-                <p className="mt-3 max-w-[300px] text-[14px] leading-relaxed text-muted">{slides[step].body}</p>
+                <p className="mt-3 max-w-[300px] text-[15px] leading-relaxed text-white/80">{slides[step].body}</p>
               </div>
             </div>
           </motion.div>
@@ -81,7 +81,7 @@ export function Onboarding({
 
       <div className="mt-5 flex justify-center gap-1.5" aria-hidden>
         {slides.map((_, i) => (
-          <span key={i} className={`h-1 rounded-pill transition-all ${i === step ? "w-6 bg-ink" : "w-1.5 bg-white/20"}`} />
+          <span key={i} className={`h-1 rounded-pill transition-all ${i === step ? "w-6 bg-coral" : "w-1.5 bg-ink/20"}`} />
         ))}
       </div>
 

@@ -200,8 +200,8 @@ export function SellDeck({
     <div className="flex min-h-[calc(100dvh-72px)] flex-col px-4">
       <header className="flex items-center justify-between px-1 pt-5 pb-3">
         <div>
-          <p className="text-[12px] uppercase tracking-[0.14em] text-muted">Sell</p>
-          <h1 className="text-[20px] font-semibold tracking-tighter">Your plans</h1>
+          <p className="text-[13px] font-semibold text-muted">Sell</p>
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-tighter">Your plans</h1>
         </div>
         <button
           onClick={syncCalendar}
@@ -297,14 +297,14 @@ export function SellDeck({
             <button
               aria-label="Sell this one"
               onClick={() => deckRef.current?.swipe("left")}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-slate text-[#0A0B0D] transition-transform active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-slate text-white transition-transform active:scale-95"
             >
               <Tag size={24} strokeWidth={2} />
             </button>
             <button
               aria-label="Keep this one"
               onClick={() => deckRef.current?.swipe("right")}
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-[#0A0B0D] transition-transform active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-coral text-white transition-transform active:scale-95"
             >
               <Heart size={24} strokeWidth={2} fill="currentColor" />
             </button>
@@ -386,7 +386,7 @@ export function SellDeck({
           onChange={(e) => setPasted(e.target.value)}
           rows={5}
           placeholder="Your order for Maggie Rogers at Stubb's BBQ on Sat, Nov 21, 2026 at 7:30 PM. Total $95.00"
-          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[13px] text-ink placeholder:text-faint focus:border-white/40 focus-visible:outline-none"
+          className="mt-4 w-full resize-none rounded-btn border border-line bg-base px-3.5 py-3 text-[13px] text-ink placeholder:text-faint focus:border-ink/40 focus-visible:outline-none"
         />
         <div className="mt-4">
           <Button full onClick={importPlan} loading={busy} disabled={pasted.trim().length < 6}>
