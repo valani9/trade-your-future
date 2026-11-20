@@ -317,6 +317,8 @@ The public RPC faucet is closed on devnet, so fund the escrow address from https
 
 To wire QuickNode: create a Stream on **Solana Devnet**, dataset **Block**, paste `docs/quicknode-filter.js` as the filter, and point a webhook destination at `https://<your-domain>/api/streams/quicknode`. Copy the stream's security token into `QUICKNODE_STREAM_TOKEN`.
 
+If you pay for an RPC provider, put its endpoint in `SOLANA_RPC_URL` and the token in `SOLANA_RPC_TOKEN`: the token is appended to the URL path, which is where providers like QuickNode expect it, and it authenticates the websocket subscriptions too.
+
 All variables are listed in `.env.example`.
 
 ## Tests
