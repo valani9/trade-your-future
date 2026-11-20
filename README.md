@@ -33,9 +33,11 @@ flowchart TD
   AUTH --> RH
 ```
 
-**Money.** Every amount is an integer number of cents. A 10% platform fee is taken from the sale, rounded down to the cent, and the seller receives the rest. Payments are idempotent: every write endpoint accepts an `Idempotency-Key` header and replays the original response instead of transferring twice.
+**Money.** Every amount is an integer number of cents. A 10% platform fee is taken from the sale, rounded down to the cent, and the seller receives the rest. Payments are idempotent: the order actions (pay, handover, confirm, cancel, dispute, withdraw, undo) require an `Idempotency-Key` header, and a replay returns the original response instead of transferring twice. The key is claimed before the handler runs, so two identical requests arriving at once perform the write once.
 
-**Order state machine.** `created -> funded -> handed_over -> released`, with `refunded`, `disputed` and `failed` branches. Every transition is a compare-and-swap on the order row, so two concurrent requests can never both win; anything else returns 409. Each transition writes an audit event and posts a Memo transaction.
+**Order state machine.** `created -> funded -> handed_over -> released`, with `refunded`, `disputed` and `failed` branches. Every transition is a compare-and-swap on the order row, so two concurrent requests can never both win; anything else returns 409. The payout and refund states are claimed before money moves, so a retry after an ambiguous transfer error cannot pay twice, and an order interrupted between the state change and the transfer is finished by the next cron tick. Each transition writes an audit event and posts a Memo transaction.
+
+A dispute holds the money where it is: the buyer can withdraw it, the seller can refund it, and if neither acts it settles on its own after seven days — refunding the buyer when nothing was handed over, paying the seller when it was.
 
 **Data.** `users`, `plans`, `listings`, `swipes`, `orders`, `swaps`, `events`, plus an `idempotency_keys` table. Constraints do real work: one open listing per plan, one live order per listing, positive prices, non-negative fees, end after start.
 
