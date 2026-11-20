@@ -14,15 +14,23 @@ import { formatUsd } from "@/lib/money";
 import { SwapSheet } from "@/components/app/SwapSheet";
 import { ArrowLeftRight } from "lucide-react";
 
-export function BuyDeck({ demoMode }: { demoMode: boolean }) {
+export function BuyDeck({
+  demoMode,
+  initial = null,
+  initialCursor = null,
+}: {
+  demoMode: boolean;
+  initial?: FeedCard[] | null;
+  initialCursor?: string | null;
+}) {
   const router = useRouter();
   const toast = useToast();
-  const [cards, setCards] = useState<FeedCard[]>([]);
+  const [cards, setCards] = useState<FeedCard[]>(initial ?? []);
   const [top, setTop] = useState(0);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState(false);
-  const [exhausted, setExhausted] = useState(false);
+  const [exhausted, setExhausted] = useState(Boolean(initial) && !initialCursor);
   const [claim, setClaim] = useState<{ orderId: string; card: FeedCard } | null>(null);
   const [paying, setPaying] = useState(false);
   const [undoLeft, setUndoLeft] = useState(0);
@@ -43,10 +51,11 @@ export function BuyDeck({ demoMode }: { demoMode: boolean }) {
   );
 
   useEffect(() => {
+    if (initial) return;
     load(null)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [load]);
+  }, [load, initial]);
 
   async function reload() {
     setLoading(true);

@@ -16,11 +16,21 @@ import { formatEventDate } from "@/lib/utils";
 
 type ClashGroup = { dayLabel: string; planIds: string[] };
 
-export function SellDeck({ demoMode }: { demoMode: boolean }) {
+export function SellDeck({
+  demoMode,
+  initial = null,
+  initialClashes = null,
+}: {
+  demoMode: boolean;
+  initial?: PlanCardData[] | null;
+  initialClashes?: ClashGroup[] | null;
+}) {
   const router = useRouter();
   const toast = useToast();
-  const [plans, setPlans] = useState<PlanCardData[] | null>(null);
-  const [clashes, setClashes] = useState<ClashGroup[]>([]);
+  const [plans, setPlans] = useState<PlanCardData[] | null>(
+    initial ? initial.filter((p) => p.status === "active" || p.status === "listed") : null,
+  );
+  const [clashes, setClashes] = useState<ClashGroup[]>(initialClashes ?? []);
   const [top, setTop] = useState(0);
   const [sellPlan, setSellPlan] = useState<PlanCardData | null>(null);
   const [price, setPrice] = useState(0);
@@ -46,10 +56,11 @@ export function SellDeck({ demoMode }: { demoMode: boolean }) {
   }, []);
 
   useEffect(() => {
+    if (initial) return;
     load()
       .catch(() => toast.show("Couldn't load your plans", "error"))
       .finally(() => setPlans((prev) => prev ?? []));
-  }, [load, toast]);
+  }, [load, toast, initial]);
 
   async function openSell(plan: PlanCardData) {
     setSellPlan(plan);

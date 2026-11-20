@@ -49,8 +49,8 @@ async function main() {
       ["/orders", "orders"],
       ["/wallet", "wallet"],
       ["/settings", "settings"],
-      ["/styleguide", "styleguide"],
     ];
+    if (process.env.SHOW_STYLEGUIDE === "true") routes.push(["/styleguide", "styleguide"]);
     const extraRoutes: Array<[string, string]> = [];
     const orderId = await page.evaluate(async () => {
       const list = await (await fetch("/api/orders?role=buyer")).json();

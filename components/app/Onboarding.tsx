@@ -9,19 +9,19 @@ const slides = [
     kicker: "Trade Your Future",
     title: "Buy and trade your future.",
     body: "Tickets, tables, nights away. Swipe right to claim it, left to let it go.",
-    image: "/demo/wine-bar.jpg",
+    image: "/demo/wine-bar.webp",
   },
   {
     kicker: "Your plans, live",
     title: "Two plans, one night?",
     body: "We spot the clash and help you sell the one you'll skip.",
-    image: "/demo/jazz-club.jpg",
+    image: "/demo/jazz-club.webp",
   },
   {
     kicker: "Money, handled",
     title: "Pay once. Held until it's yours.",
     body: "Your money sits safe until handover. Sellers get paid when you're covered.",
-    image: "/demo/theater-stage.jpg",
+    image: "/demo/theater-stage.webp",
   },
 ];
 

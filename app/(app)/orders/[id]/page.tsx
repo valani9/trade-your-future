@@ -109,6 +109,7 @@ export default function OrderPage() {
         toast.show(data.error ?? "That didn't work", "error");
         return;
       }
+      setDisputeOpen(false);
       await load();
       toast.show(
         action === "confirm"

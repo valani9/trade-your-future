@@ -84,3 +84,42 @@ test("no horizontal scroll and labelled controls on every screen", async ({ page
     expect(unnamed, `unnamed buttons on ${route}`).toEqual([]);
   }
 });
+
+test("a buyer can flag a problem and put the order back on track", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "Claim it" }).click();
+  await page.getByRole("button", { name: /^Pay \$/ }).click();
+  await page.waitForURL(/\/orders\//, { timeout: 30_000 });
+  await page.getByRole("button", { name: /got it/i }).waitFor({ state: "visible", timeout: 40_000 });
+
+  await page.getByRole("button", { name: /something's wrong/i }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: /put it in review/i }).click();
+
+  await expect(page.getByText("In review", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/the money is still held/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /never mind, finish the order/i }).click();
+  await expect(page.getByRole("button", { name: /got it/i })).toBeVisible({ timeout: 20_000 });
+});
+
+test("arrow keys do nothing while a sheet is open", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: /swap instead/i }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+
+  const before = await page.locator("h2").first().textContent();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowLeft");
+  await expect(dialog).toBeVisible();
+  expect(await page.locator("h2").first().textContent()).toBe(before);
+});
+
+test("a missing order says so instead of spinning", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/orders/does-not-exist");
+  await expect(page.getByText(/couldn't find that order/i)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("link", { name: /back to your orders/i }).click();
+  await page.waitForURL(/\/orders$/, { timeout: 20_000 });
+});

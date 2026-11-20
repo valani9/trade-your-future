@@ -240,7 +240,7 @@ export function buildDemoPlans(now = new Date()) {
       endsAt: new Date(concert.getTime() + 180 * 60_000),
       faceValueCents: 9500,
       transferability: "transferable" as Transfer,
-      imageUrl: "/demo/concert-hall.jpg",
+      imageUrl: "/demo/concert-hall.webp",
     },
     {
       category: "restaurant" as Category,
@@ -252,7 +252,7 @@ export function buildDemoPlans(now = new Date()) {
       endsAt: new Date(dinner.getTime() + 120 * 60_000),
       faceValueCents: 22000,
       transferability: "name_change" as Transfer,
-      imageUrl: "/demo/restaurant-table.jpg",
+      imageUrl: "/demo/restaurant-table.webp",
     },
     {
       category: "flight" as Category,
@@ -264,7 +264,7 @@ export function buildDemoPlans(now = new Date()) {
       endsAt: localTime(startOfDay(now, 9), 11, 40, CT),
       faceValueCents: 31000,
       transferability: "name_change" as Transfer,
-      imageUrl: "/demo/plane-window.jpg",
+      imageUrl: "/demo/plane-window.webp",
     },
     {
       category: "class" as Category,
@@ -276,7 +276,7 @@ export function buildDemoPlans(now = new Date()) {
       endsAt: localTime(startOfDay(now, 14), 20, 0, CT),
       faceValueCents: 6500,
       transferability: "transferable" as Transfer,
-      imageUrl: "/demo/pottery-studio.jpg",
+      imageUrl: "/demo/pottery-studio.webp",
     },
   ];
 }
