@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   await page.waitForURL(/\/buy/, { timeout: 45_000 });
   await page.getByRole("button", { name: "Claim it", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
   await page.evaluate(async () => {
-    for (let i = 0; i < 5; i++) await fetch("/api/wallet/fund", { method: "POST" });
+    for (let i = 0; i < 2; i++) await fetch("/api/wallet/fund", { method: "POST" });
   });
 });
 

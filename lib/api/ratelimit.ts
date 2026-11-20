@@ -3,7 +3,7 @@ type Bucket = { tokens: number; updatedAt: number };
 const buckets = new Map<string, Bucket>();
 const WINDOW_MS = 60_000;
 
-export function rateLimit(key: string, limit = 40): { ok: boolean; retryAfter: number } {
+export function rateLimit(key: string, limit = 60): { ok: boolean; retryAfter: number } {
   const now = Date.now();
   const bucket = buckets.get(key) ?? { tokens: limit, updatedAt: now };
   const refill = ((now - bucket.updatedAt) / WINDOW_MS) * limit;
