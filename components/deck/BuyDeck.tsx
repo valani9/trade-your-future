@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/Toast";
 import { formatUsd } from "@/lib/money";
 import { SwapSheet } from "@/components/app/SwapSheet";
 import { ArrowLeftRight, Mic, MicOff } from "lucide-react";
-import { listenForCommand, say } from "@/lib/voiceClient";
+import { listenForCommand, say, stopSpeaking } from "@/lib/voiceClient";
 import { narrateCard } from "@/lib/services/voice";
 
 export function BuyDeck({
@@ -234,8 +234,10 @@ export function BuyDeck({
         if (attempt === 0) await say("Say claim or pass.");
       }
     })();
+    const runRef = voiceRun;
     return () => {
-      voiceRun.current++;
+      runRef.current++;
+      stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [voice, top, claim, loading, cards.length]);

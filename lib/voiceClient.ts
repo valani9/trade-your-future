@@ -37,6 +37,13 @@ export async function say(text: string): Promise<void> {
   }
 }
 
+/** Cuts off whatever is speaking, so turning voice mode off is immediate. */
+export function stopSpeaking(): void {
+  current?.pause();
+  current = null;
+  if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
 /** Records ~2.5s from the mic and returns the parsed command. */
 export async function listenForCommand(ms = 2500): Promise<string | null> {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return null;

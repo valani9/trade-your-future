@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marketAdjustedPrice, oddsForMatchup, pickMoneyline, splitMatchup, toOdds } from "@/lib/services/markets";
+import { marketAdjustedPrice, oddsForMatchup, pickMoneyline, splitMatchup, teamName, toOdds } from "@/lib/services/markets";
 import { narrateCard, parseCommand } from "@/lib/services/voice";
 import { extractMatches } from "@/lib/services/streams";
 
@@ -30,9 +30,22 @@ describe("gemini prediction markets", () => {
     const event = pickMoneyline([game], "Celtics", "Kings");
     expect(event?.ticker).toBe(game.ticker);
     const odds = toOdds(event!)!;
-    expect(odds.favorite.name).toBe("Boston");
+    expect(odds.favorite.name).toBe("Boston Celtics");
     expect(odds.favorite.probability).toBeCloseTo(0.71, 2);
     expect(odds.closeGame).toBe(false);
+  });
+
+  it("spells out a truncated team label and leaves strangers alone", () => {
+    expect(teamName("Los Angeles L", game)).toBe("Los Angeles L");
+    const lakers = {
+      ...game,
+      participants: [
+        { name: "Los Angeles Lakers", abbreviation: "LAL" },
+        { name: "Sacramento Kings", abbreviation: "SAC" },
+      ],
+    };
+    expect(teamName("Los Angeles L", lakers)).toBe("Los Angeles Lakers");
+    expect(teamName("Sacramento", lakers)).toBe("Sacramento Kings");
   });
 
   it("ignores games that don't include both teams", () => {

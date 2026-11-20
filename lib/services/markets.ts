@@ -83,9 +83,20 @@ export function pickMoneyline(events: GeminiEvent[], a: string, b: string, start
     )[0];
 }
 
+/** Contract labels are truncated team names ("Los Angeles L"); say the full name instead. */
+export function teamName(label: string, event: GeminiEvent): string {
+  const l = norm(label);
+  if (!l) return label;
+  const match = (event.participants ?? []).find((p) => {
+    const n = norm(p.name);
+    return n === l || n.startsWith(l) || l.startsWith(n);
+  });
+  return match?.name ?? label;
+}
+
 export function toOdds(event: GeminiEvent): MarketOdds | null {
   const sides = (event.contracts ?? [])
-    .map((c) => ({ name: c.label, probability: impliedProbability(c) }))
+    .map((c) => ({ name: teamName(c.label, event), probability: impliedProbability(c) }))
     .filter((s): s is { name: string; probability: number } => s.probability !== null);
   if (sides.length < 2) return null;
   const total = sides.reduce((sum, s) => sum + s.probability, 0);

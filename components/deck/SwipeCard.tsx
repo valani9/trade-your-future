@@ -114,8 +114,9 @@ export const SwipeCard = forwardRef<
           <Pill tone="coral" className="bg-black/55 backdrop-blur-sm">{card.category}</Pill>
           <Pill className="bg-black/55 backdrop-blur-sm text-ink/90">{TRANSFER_LABEL[card.transferability] ?? card.transferability}</Pill>
           {odds ? (
-            <Pill className="bg-black/55 backdrop-blur-sm text-ink/90" data-testid="market-odds">
-              {odds.closeGame ? "Close game" : "Odds"} · {odds.favorite.name} {Math.round(odds.favorite.probability * 100)}%
+            <Pill className="whitespace-nowrap bg-black/55 backdrop-blur-sm text-ink/90" data-testid="market-odds">
+              {odds.closeGame ? "Close game" : "Odds"} · {odds.favorite.name.split(" ").slice(-1)[0]}{" "}
+              {Math.round(odds.favorite.probability * 100)}%
             </Pill>
           ) : null}
         </div>
